@@ -498,6 +498,15 @@ function matchConfigForRoom(room: StoredRoom) {
   }
 }
 
+async function startLooseMatch(room: StoredRoom, env: Env): Promise<void> {
+  const map = matchMapName(room.selectedMapId ?? '')
+  await rconExecute('css_endmatch', env)
+  await rconExecute(`map "${map}"`, env)
+  await new Promise((resolve) => setTimeout(resolve, 5_000))
+  await rconExecute('css_start', env)
+  await rconExecute('mp_autoteambalance 0; mp_limitteams 0; mp_spectators_max 20; mp_teamname_1 "A"; mp_teamname_2 "B"', env)
+}
+
 function matchLoadCommand(room: StoredRoom, env: Env): string {
   if (!room.matchToken) throw new Error('比赛配置令牌不存在')
   const origin = (env.PUBLIC_ORIGIN ?? 'https://pick.noyy.de').replace(/\/$/, '')
@@ -1091,16 +1100,15 @@ export class DraftRoom extends DurableObject<Env> {
         const selectedPlayers = [...room.teamAIds, ...room.teamBIds]
           .map((playerId) => room.players.find((player) => player.id === playerId))
         if (selectedPlayers.some((player) => !player?.steamId)) throw new Error('有玩家缺少 Steam64 ID，无法加载 MatchZy 比赛')
-        room.matchId = Date.now()
-        room.matchToken = randomToken()
+        room.matchId = null
+        room.matchToken = null
         room.matchStartedAt = null
         await this.persist()
         try {
-          const command = matchLoadCommand(room, this.roomEnv)
-          await rconExecute(command, this.roomEnv)
+          await startLooseMatch(room, this.roomEnv)
           room.status = 'match_started'
           room.matchStartedAt = Date.now()
-          noticeMessage = 'MatchZy 比赛配置已加载，服务器正在进入竞技模式'
+          noticeMessage = '自由娱乐模式已启动，玩家可以自由换队或观战'
         } catch (error) {
           room.matchToken = null
           room.matchId = null

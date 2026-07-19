@@ -843,10 +843,10 @@ function MatchStarted({
   const selectedMap = state.maps.find((map) => map.id === state.selectedMapId)
   return (
     <section className="panel map-result-panel">
-      <div className="eyebrow">MATCHZY MATCH</div>
-      <h2>竞技比赛已开始</h2>
+      <div className="eyebrow">FREE MATCH</div>
+      <h2>娱乐模式已开始</h2>
       <div className="map-result-name">{selectedMap?.name ?? '地图已加载'}</div>
-      <p className="muted">MatchZy 已接收队伍、Steam64 ID 和 BO1 地图配置。</p>
+      <p className="muted">玩家可以自由加入 CT、T 或观战。</p>
       <div className="draft-footer">
         <button className="secondary-button compact" onClick={copyResult}>复制对局信息</button>
         {me.isHost && <button className="secondary-button compact" onClick={() => send({ type: 'reset_room' })}>重置房间</button>}
