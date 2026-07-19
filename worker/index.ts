@@ -3,7 +3,7 @@ import { connect } from 'cloudflare:sockets'
 
 type TeamSide = 'A' | 'B'
 type RoomCapacity = 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12
-type RoomStatus = 'waiting' | 'pick_decision' | 'drafting' | 'finished' | 'map_veto' | 'map_finished' | 'closed'
+type RoomStatus = 'waiting' | 'pick_decision' | 'drafting' | 'finished' | 'map_veto' | 'map_finished' | 'match_started' | 'closed'
 
 const MAX_PLAYERS = 12
 const ROOM_IDLE_MS = 2 * 60 * 60 * 1000
@@ -27,6 +27,7 @@ interface Env {
   RCON_HOST?: string
   RCON_PORT?: string
   RCON_PASSWORD?: string
+  PUBLIC_ORIGIN?: string
 }
 
 interface StoredPlayer {
@@ -71,6 +72,9 @@ interface StoredRoom {
   rollB: number | null
   rollWinner: TeamSide | null
   firstPickSide: TeamSide | null
+  matchToken: string | null
+  matchId: string | null
+  matchStartedAt: number | null
 }
 
 interface DirectoryRoom {
@@ -92,8 +96,6 @@ interface ClientAction {
   playerId?: string
   mapId?: string
   firstPick?: boolean
-  serverAction?: 'status' | 'restart_match' | 'restart_server' | 'kick_bots' | 'switch_map' | 'host_workshop_map' | 'kick_player'
-  workshopId?: string
 }
 
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8' }
@@ -472,34 +474,35 @@ async function rconExecute(command: string, env: Env): Promise<string> {
   }
 }
 
-function serverCommand(action: ClientAction, room: StoredRoom): string {
-  switch (action.serverAction) {
-    case 'status':
-      return 'status'
-    case 'restart_match':
-      return 'mp_restartgame 3'
-    case 'restart_server':
-      return 'quit'
-    case 'kick_bots':
-      return 'bot_kick'
-    case 'switch_map': {
-      const mapId = String(action.mapId ?? '')
-      if (!MAP_POOL.some((map) => map.id === mapId)) throw new Error('地图不在当前服役地图池')
-      return `map ${mapId}`
-    }
-    case 'host_workshop_map': {
-      const workshopId = String(action.workshopId ?? '').trim()
-      if (!/^\d{5,20}$/.test(workshopId)) throw new Error('创意工坊地图 ID 不正确')
-      return `host_workshop_map ${workshopId}`
-    }
-    case 'kick_player': {
-      const playerId = String(action.playerId ?? '').trim()
-      if (!/^\d+$/.test(playerId)) throw new Error('玩家服务器 ID 不正确')
-      return `kickid ${playerId}`
-    }
-    default:
-      throw new Error('不支持的服务器操作')
+function matchMapName(mapId: string): string {
+  return mapId === 'dust2' ? 'de_dust2' : `de_${mapId}`
+}
+
+function matchConfigForRoom(room: StoredRoom) {
+  const playerById = new Map(room.players.map((player) => [player.id, player]))
+  const players = (ids: string[]) => Object.fromEntries(ids.map((id) => {
+    const player = playerById.get(id)
+    return [player?.steamId ?? '', player?.name ?? '']
+  }).filter(([steamId]) => Boolean(steamId)))
+  return {
+    matchid: room.matchId,
+    team1: { name: 'A', players: players(room.teamAIds) },
+    team2: { name: 'B', players: players(room.teamBIds) },
+    num_maps: 1,
+    maplist: [matchMapName(room.selectedMapId ?? '')],
+    map_sides: ['knife'],
+    clinch_series: true,
+    cvars: {
+      hostname: `CS2 Draft ${room.code}`,
+    },
   }
+}
+
+function matchLoadCommand(room: StoredRoom, env: Env): string {
+  if (!room.matchToken) throw new Error('比赛配置令牌不存在')
+  const origin = (env.PUBLIC_ORIGIN ?? 'https://pick.noyy.de').replace(/\/$/, '')
+  const url = `${origin}/api/rooms/${room.code}/match.json`
+  return `matchzy_loadmatch_url "${url}" "Authorization" "Bearer ${room.matchToken}"`
 }
 
 function steamLogout(): Response {
@@ -677,6 +680,15 @@ export default {
       })
     }
 
+    const matchConfigMatch = url.pathname.match(/^\/api\/rooms\/([A-Za-z0-9]{4,10})\/match\.json$/)
+    if (matchConfigMatch && request.method === 'GET') {
+      const code = normalizeCode(matchConfigMatch[1])
+      const headers = new Headers()
+      const authorization = request.headers.get('authorization')
+      if (authorization) headers.set('authorization', authorization)
+      return roomStub(env, code).fetch(new Request('https://room.internal/match.json', { headers }))
+    }
+
     const stateMatch = url.pathname.match(/^\/api\/rooms\/([A-Za-z0-9]{4,10})\/state$/)
     if (stateMatch && request.method === 'GET') {
       const code = normalizeCode(stateMatch[1])
@@ -712,6 +724,7 @@ export class DraftRoom extends DurableObject<Env> {
 
     if (url.pathname === '/create' && request.method === 'POST') return this.createRoom(request)
     if (url.pathname === '/join' && request.method === 'POST') return this.joinRoom(request)
+    if (url.pathname === '/match.json' && request.method === 'GET') return this.matchConfig(request)
     if (url.pathname === '/state' && request.method === 'GET') {
       if (!this.room) return json({ error: '房间不存在' }, 404)
       await this.refreshMissingPlayerData()
@@ -774,6 +787,9 @@ export class DraftRoom extends DurableObject<Env> {
         rollB: null,
         rollWinner: null,
         firstPickSide: null,
+        matchToken: null,
+        matchId: null,
+        matchStartedAt: null,
       }
       await this.persist()
       return json({ roomCode: code, playerId, token, state: this.publicState() }, 201)
@@ -822,6 +838,13 @@ export class DraftRoom extends DurableObject<Env> {
     } catch (error) {
       return json({ error: errorMessage(error) }, 400)
     }
+  }
+
+  private async matchConfig(request: Request): Promise<Response> {
+    if (!this.room || !this.room.matchToken) return json({ error: '比赛配置不存在' }, 404)
+    const authorization = request.headers.get('authorization')
+    if (authorization !== `Bearer ${this.room.matchToken}`) return json({ error: '比赛配置授权失败' }, 401)
+    return json(matchConfigForRoom(this.room))
   }
 
   private async openSocket(request: Request): Promise<Response> {
@@ -1051,6 +1074,9 @@ export class DraftRoom extends DurableObject<Env> {
         room.rollB = null
         room.rollWinner = null
         room.firstPickSide = null
+        room.matchToken = null
+        room.matchId = null
+        room.matchStartedAt = null
         this.updateAutomaticCaptains()
         break
       }
@@ -1059,11 +1085,28 @@ export class DraftRoom extends DurableObject<Env> {
         room.status = 'closed'
         break
       }
-      case 'server_action': {
+      case 'start_match': {
         this.requireHost(actorId)
-        const command = serverCommand(action, room)
-        const response = await rconExecute(command, this.roomEnv)
-        noticeMessage = `服务器指令已执行：${command}${response ? `\n${response}` : ''}`
+        if (room.status !== 'map_finished' || !room.selectedMapId) throw new Error('请先完成 BO1 地图禁选')
+        const selectedPlayers = [...room.teamAIds, ...room.teamBIds]
+          .map((playerId) => room.players.find((player) => player.id === playerId))
+        if (selectedPlayers.some((player) => !player?.steamId)) throw new Error('有玩家缺少 Steam64 ID，无法加载 MatchZy 比赛')
+        room.matchId = `${room.code}-${Date.now()}`
+        room.matchToken = randomToken()
+        room.matchStartedAt = null
+        await this.persist()
+        try {
+          const command = matchLoadCommand(room, this.roomEnv)
+          await rconExecute(command, this.roomEnv)
+          room.status = 'match_started'
+          room.matchStartedAt = Date.now()
+          noticeMessage = 'MatchZy 比赛配置已加载，服务器正在进入竞技模式'
+        } catch (error) {
+          room.matchToken = null
+          room.matchId = null
+          await this.persist()
+          throw error
+        }
         break
       }
       default:
@@ -1205,6 +1248,7 @@ export class DraftRoom extends DurableObject<Env> {
       rollB: room.rollB ?? null,
       rollWinner: room.rollWinner ?? null,
       firstPickSide: room.firstPickSide ?? null,
+      matchStartedAt: room.matchStartedAt ?? null,
     }
   }
 

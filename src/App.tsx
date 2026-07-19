@@ -421,48 +421,6 @@ function JoinRoom({
   )
 }
 
-function ServerControls({ state, send }: { state: PublicRoomState; send: (action: ClientAction) => void }) {
-  const [mapId, setMapId] = useState(state.selectedMapId ?? state.maps[0]?.id ?? '')
-  const [workshopId, setWorkshopId] = useState('')
-  const [serverPlayerId, setServerPlayerId] = useState('')
-
-  return (
-    <section className="panel server-controls">
-      <div className="section-title-row">
-        <div>
-          <h2>服务器控制</h2>
-          <p>仅房主可用 · 通过 RCON 控制 MatchZy 服务器</p>
-        </div>
-      </div>
-      <div className="server-action-row">
-        <button className="secondary-button compact" onClick={() => send({ type: 'server_action', serverAction: 'status' })}>读取状态</button>
-        <button className="secondary-button compact" onClick={() => send({ type: 'server_action', serverAction: 'restart_match' })}>重启比赛</button>
-        <button className="secondary-button compact" onClick={() => send({ type: 'server_action', serverAction: 'kick_bots' })}>踢出 BOT</button>
-        <button className="danger-button compact" onClick={() => send({ type: 'server_action', serverAction: 'restart_server' })}>重启服务器</button>
-      </div>
-      <div className="server-form-grid">
-        <label>
-          切换服务器地图
-          <select value={mapId} onChange={(event) => setMapId(event.target.value)}>
-            {state.maps.map((map) => <option key={map.id} value={map.id}>{map.name}</option>)}
-          </select>
-        </label>
-        <button className="secondary-button compact server-form-button" onClick={() => send({ type: 'server_action', serverAction: 'switch_map', mapId })}>切换地图</button>
-        <label>
-          创意工坊地图 ID
-          <input value={workshopId} onChange={(event) => setWorkshopId(event.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder="例如 123456789" />
-        </label>
-        <button className="secondary-button compact server-form-button" disabled={!workshopId} onClick={() => send({ type: 'server_action', serverAction: 'host_workshop_map', workshopId })}>加载工坊地图</button>
-        <label>
-          服务器玩家 ID
-          <input value={serverPlayerId} onChange={(event) => setServerPlayerId(event.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder="status 中的 ID" />
-        </label>
-        <button className="danger-button compact server-form-button" disabled={!serverPlayerId} onClick={() => send({ type: 'server_action', serverAction: 'kick_player', playerId: serverPlayerId })}>踢出玩家</button>
-      </div>
-    </section>
-  )
-}
-
 function RoomDashboard({
   state,
   me,
@@ -530,8 +488,6 @@ function RoomDashboard({
       {error && <div className="toast error-toast room-toast">{error}</div>}
       {notice && <div className="toast notice-toast room-toast">{notice}</div>}
 
-      {me.isHost && <ServerControls state={state} send={send} />}
-
       {state.status === 'waiting' && (
         <WaitingRoom
           state={state}
@@ -553,6 +509,8 @@ function RoomDashboard({
       {state.status === 'map_veto' && <MapVetoBoard state={state} me={me} connection={connection} playerMap={playerMap} send={send} />}
 
       {state.status === 'map_finished' && <MapResult state={state} me={me} send={send} copyResult={copyResult} />}
+
+      {state.status === 'match_started' && <MatchStarted state={state} me={me} send={send} copyResult={copyResult} />}
 
       {state.status === 'closed' && (
         <section className="panel closed-panel">
@@ -862,11 +820,38 @@ function MapResult({
       </section>
 
       <section className="draft-footer">
+        {me.isHost && <button className="primary-button compact" onClick={() => send({ type: 'start_match' })}>开始竞技比赛</button>}
         <button className="primary-button compact" onClick={copyResult}>复制对局信息</button>
         {me.isHost && <button className="secondary-button compact" onClick={() => send({ type: 'reset_room' })}>重置房间</button>}
         {me.isHost && <button className="danger-button compact" onClick={() => send({ type: 'close_room' })}>关闭房间</button>}
       </section>
     </>
+  )
+}
+
+function MatchStarted({
+  state,
+  me,
+  send,
+  copyResult,
+}: {
+  state: PublicRoomState
+  me: PublicPlayer
+  send: (action: ClientAction) => void
+  copyResult: () => void
+}) {
+  const selectedMap = state.maps.find((map) => map.id === state.selectedMapId)
+  return (
+    <section className="panel map-result-panel">
+      <div className="eyebrow">MATCHZY MATCH</div>
+      <h2>竞技比赛已开始</h2>
+      <div className="map-result-name">{selectedMap?.name ?? '地图已加载'}</div>
+      <p className="muted">MatchZy 已接收队伍、Steam64 ID 和 BO1 地图配置。</p>
+      <div className="draft-footer">
+        <button className="secondary-button compact" onClick={copyResult}>复制对局信息</button>
+        {me.isHost && <button className="secondary-button compact" onClick={() => send({ type: 'reset_room' })}>重置房间</button>}
+      </div>
+    </section>
   )
 }
 
@@ -948,6 +933,7 @@ function statusLabel(status: PublicRoomState['status']) {
     finished: '已完成',
     map_veto: '地图禁选',
     map_finished: '地图已定',
+    match_started: '竞技比赛中',
     closed: '已关闭',
   }[status]
 }

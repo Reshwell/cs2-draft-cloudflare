@@ -13,7 +13,7 @@
 - 地图池：Dust II、Mirage、Inferno、Nuke、Ancient、Anubis、Cache
 - 浏览器随机令牌恢复身份
 - 复制邀请链接和最终阵容
-- 房主 RCON 控制：服务器状态、切图、重启比赛、踢 BOT、踢玩家、加载创意工坊地图
+- 地图完成后通过 RCON 调用 MatchZy，自动加载双方队伍、Steam64 ID 和 BO1 地图
 
 > 玩家使用 Steam 登录，房间昵称自动读取 Steam 昵称。
 
@@ -49,13 +49,13 @@ npx wrangler secret put STEAM_API_KEY
 
 `STEAM_SESSION_SECRET` 用于签名登录会话；`STEAM_API_KEY` 使用 Steam Web API Key。不要把这两个值写进代码或提交到 Git。
 
-服务器 RCON 密码也必须配置为 Cloudflare Secret：
+服务器 RCON 密码也必须配置为 Cloudflare Secret，用于执行 MatchZy 的比赛加载命令：
 
 ```bash
 npx wrangler secret put RCON_PASSWORD
 ```
 
-RCON 主机和端口在 `wrangler.jsonc` 中配置。前端只允许执行预设服务器操作，不接受任意 RCON 命令。
+RCON 主机和端口在 `wrangler.jsonc` 中配置。前端只允许执行“开始竞技比赛”，不接受任意 RCON 命令。
 
 然后部署：
 

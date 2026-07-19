@@ -106,11 +106,6 @@ input:focus, select:focus { border-color: rgba(244,184,64,.8); box-shadow: 0 0 0
 .room-summary > div:last-child { border-right: 0; }
 .room-summary strong { font-size: 1.18rem; color: #fff; }
 .room-summary span { color: var(--muted); font-size: .82rem; }
-.server-controls { margin-bottom: 18px; }
-.server-action-row { display: flex; flex-wrap: wrap; gap: 8px; }
-.server-form-grid { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 0 10px; align-items: end; }
-.server-form-grid label { margin-bottom: 10px; }
-.server-form-button { margin-bottom: 10px; white-space: nowrap; }
 .notice-toast { color: #dfffea; background: #123528; border: 1px solid rgba(61,220,151,.32); white-space: pre-wrap; }
 .waiting-layout { display: grid; grid-template-columns: 1fr 340px; gap: 20px; }
 .section-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; margin-bottom: 18px; }
@@ -188,8 +183,6 @@ input:focus, select:focus { border-color: rgba(244,184,64,.8); box-shadow: 0 0 0
   .draft-grid .available-column { order: -1; }
   .room-header { align-items: flex-start; flex-direction: column; }
   .header-actions { justify-content: flex-start; }
-  .server-form-grid { grid-template-columns: 1fr; }
-  .server-form-button { width: 100%; }
 }
 
 @media (max-width: 600px) {

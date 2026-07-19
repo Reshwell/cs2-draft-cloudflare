@@ -5,7 +5,8 @@
   "compatibility_date": "2026-07-17",
   "vars": {
     "RCON_HOST": "cd.csgo2.icu",
-    "RCON_PORT": "27000"
+    "RCON_PORT": "27000",
+    "PUBLIC_ORIGIN": "https://pick.noyy.de"
   },
   "assets": {
     "not_found_handling": "single-page-application",

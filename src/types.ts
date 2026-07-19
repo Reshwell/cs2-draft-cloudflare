@@ -1,4 +1,4 @@
-export type RoomStatus = 'waiting' | 'pick_decision' | 'drafting' | 'finished' | 'map_veto' | 'map_finished' | 'closed'
+export type RoomStatus = 'waiting' | 'pick_decision' | 'drafting' | 'finished' | 'map_veto' | 'map_finished' | 'match_started' | 'closed'
 export type TeamSide = 'A' | 'B'
 
 export interface MapOption {
@@ -48,6 +48,7 @@ export interface PublicRoomState {
   rollB: number | null
   rollWinner: TeamSide | null
   firstPickSide: TeamSide | null
+  matchStartedAt: number | null
 }
 
 export interface SessionCredentials {
@@ -71,7 +72,7 @@ export type ClientAction =
   | { type: 'ban_map'; mapId: string }
   | { type: 'pick_player'; playerId: string }
   | { type: 'kick_player'; playerId: string }
-  | { type: 'server_action'; serverAction: 'status' | 'restart_match' | 'restart_server' | 'kick_bots' | 'switch_map' | 'host_workshop_map' | 'kick_player'; mapId?: string; workshopId?: string; playerId?: string }
+  | { type: 'start_match' }
   | { type: 'reset_room' }
   | { type: 'close_room' }
 
