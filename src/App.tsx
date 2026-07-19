@@ -128,7 +128,7 @@ function BrandMark() {
   return (
     <button className="brand-mark" onClick={() => navigate('/')} type="button" aria-label="返回首页">
       <span className="brand-mark-icon">+</span>
-      <span>STACK<span>UP</span></span>
+      <span>选人房</span>
     </button>
   )
 }
@@ -138,8 +138,8 @@ function Topbar({ steam, roomCode }: { steam: SteamAuthState; roomCode?: string 
     <header className="topbar">
       <BrandMark />
       <nav className="topnav" aria-label="主导航">
-        <button className="topnav-item active" onClick={() => navigate('/')} type="button"><span>◈</span> PLAY</button>
-        {roomCode && <span className="topnav-room">ROOM / {roomCode}</span>}
+        <button className="topnav-item active" onClick={() => navigate('/')} type="button"><span>◈</span> 大厅</button>
+        {roomCode && <span className="topnav-room">房间 / {roomCode}</span>}
       </nav>
       <div className="topbar-account"><SteamAccount steam={steam} compact /></div>
     </header>
@@ -210,9 +210,8 @@ function HomePage({ steam }: { steam: SteamAuthState }) {
       <Topbar steam={steam} />
       <div className="page-shell home-content">
         <section className="hero home-hero">
-          <div className="eyebrow">PLAY / CS2 DRAFT</div>
-          <h1>Build your lobby.<br /><em>Pick your team.</em></h1>
-          <p>实时组队 · 自动队长 · BO1 地图禁选</p>
+          <h1>CS2 队长选人</h1>
+          <p>最多 12 人</p>
         </section>
 
       <section className="home-grid">
@@ -220,30 +219,24 @@ function HomePage({ steam }: { steam: SteamAuthState }) {
           <div className="action-card-mark">+</div>
           <div className="panel-heading">
             <div>
-              <span className="card-kicker">NEW LOBBY</span>
               <h2>创建房间</h2>
-              <p>创建一个新的选人大厅</p>
             </div>
           </div>
 
-          <div className="action-card-meta"><span>最多 12 人</span><span>自动同步 Steam</span></div>
           <button className="primary-button full-button" disabled={busy || !steam.user} type="submit">
             {busy ? '创建中…' : '创建房间'}
           </button>
-          {!steam.user && <p className="form-note">登录 Steam 后开始</p>}
         </form>
 
         <form className="panel action-card join-card" onSubmit={openRoom}>
           <div className="action-card-mark join-mark">↗</div>
           <div className="panel-heading">
             <div>
-              <span className="card-kicker">JOIN LOBBY</span>
               <h2>加入房间</h2>
-              <p>输入房间号进入大厅</p>
             </div>
           </div>
           <label>
-            ROOM CODE
+            房间号
             <input
               className="room-code-input"
               value={joinCode}
@@ -254,17 +247,15 @@ function HomePage({ steam }: { steam: SteamAuthState }) {
             />
           </label>
           <button className="secondary-button full-button" disabled={!steam.user} type="submit">加入房间 <span>→</span></button>
-          {!steam.user && <p className="form-note">登录 Steam 后加入</p>}
         </form>
       </section>
 
       <section className="panel active-rooms-panel">
         <div className="section-title-row">
           <div>
-            <span className="card-kicker">OPEN LOBBIES</span>
             <h2>活跃房间</h2>
           </div>
-          <span className="capacity-badge"><i className="live-dot" /> {activeRooms.length} OPEN</span>
+          <span className="capacity-badge"><i className="live-dot" /> {activeRooms.length} 个</span>
         </div>
         {roomsLoading ? (
           <div className="empty-state compact-empty">正在加载…</div>
@@ -437,11 +428,9 @@ function JoinRoom({
       <Topbar steam={steam} roomCode={roomCode} />
       <form className="panel join-panel" onSubmit={join}>
         <button type="button" className="text-button back-button" onClick={() => navigate('/')}>← 返回首页</button>
-        <div className="room-code-badge">ROOM / {roomCode}</div>
-        <div className="join-kicker">YOU'RE INVITED</div>
+        <div className="room-code-badge">房间 / {roomCode}</div>
         <h1>加入房间</h1>
-        <p className="muted">使用你的 Steam 账号加入大厅</p>
-        {steam.user && <div className="join-profile"><img src={steam.user.avatarUrl} alt="" /><span>{steam.user.steamName}</span><i>READY</i></div>}
+        {steam.user && <div className="join-profile"><img src={steam.user.avatarUrl} alt="" /><span>{steam.user.steamName}</span><i>已准备</i></div>}
         {steam.user ? (
           <button className="primary-button" disabled={busy} type="submit">
             {busy ? '正在加入…' : '加入房间'}
@@ -504,7 +493,7 @@ function RoomDashboard({
       <div className="page-shell room-shell">
       <header className="room-header">
         <div>
-          <div className="eyebrow">LIVE / DRAFT ROOM</div>
+          <div className="eyebrow">实时选人</div>
           <h1>房间 {state.code}</h1>
           <p>{state.status === 'waiting' ? '最多 12 人' : `${state.players.length} 人 · A/B ${state.teamSize}/${state.capacity - state.teamSize}`}</p>
         </div>
@@ -518,9 +507,9 @@ function RoomDashboard({
       </header>
 
       <section className="room-summary">
-        <div><span className="summary-label">PLAYERS</span><strong>{state.players.length}</strong><span>/ {state.status === 'waiting' ? 12 : state.capacity}</span></div>
-        <div><span className="summary-label">STATUS</span><strong>{statusLabel(state.status)}</strong></div>
-        <div><span className="summary-label">DRAFT</span><strong>{state.pickIndex}</strong><span>/ {state.totalPicks}</span></div>
+        <div><span className="summary-label">人数</span><strong>{state.players.length}</strong><span>/ {state.status === 'waiting' ? 12 : state.capacity}</span></div>
+        <div><span className="summary-label">状态</span><strong>{statusLabel(state.status)}</strong></div>
+        <div><span className="summary-label">选人</span><strong>{state.pickIndex}</strong><span>/ {state.totalPicks}</span></div>
       </section>
 
       <RoomPhaseRail status={state.status} />
@@ -566,7 +555,7 @@ function RoomDashboard({
 
 function RoomPhaseRail({ status }: { status: PublicRoomState['status'] }) {
   const phaseIndex = status === 'waiting' ? 0 : status === 'pick_decision' ? 1 : status === 'drafting' || status === 'finished' ? 2 : status === 'map_veto' ? 3 : 4
-  const phases = ['LOBBY', 'CAPTAINS', 'DRAFT', 'MAP VETO', 'MATCH']
+  const phases = ['大厅', '队长', '选人', '禁图', '比赛']
   return (
     <div className="phase-rail" aria-label="房间阶段">
       {phases.map((phase, index) => (
@@ -899,8 +888,7 @@ function MatchStarted({
   const selectedMap = state.maps.find((map) => map.id === state.selectedMapId)
   return (
     <section className="panel map-result-panel">
-      <div className="eyebrow">FREE MATCH</div>
-      <h2>娱乐模式已开始</h2>
+      <h2>比赛已开始</h2>
       <div className="map-result-name">{selectedMap?.name ?? '地图已加载'}</div>
       <p className="muted">玩家可以自由加入 CT、T 或观战。</p>
       <div className="draft-footer">
