@@ -73,7 +73,7 @@ interface StoredRoom {
   rollWinner: TeamSide | null
   firstPickSide: TeamSide | null
   matchToken: string | null
-  matchId: string | null
+  matchId: number | null
   matchStartedAt: number | null
 }
 
@@ -1091,7 +1091,7 @@ export class DraftRoom extends DurableObject<Env> {
         const selectedPlayers = [...room.teamAIds, ...room.teamBIds]
           .map((playerId) => room.players.find((player) => player.id === playerId))
         if (selectedPlayers.some((player) => !player?.steamId)) throw new Error('有玩家缺少 Steam64 ID，无法加载 MatchZy 比赛')
-        room.matchId = `${room.code}-${Date.now()}`
+        room.matchId = Date.now()
         room.matchToken = randomToken()
         room.matchStartedAt = null
         await this.persist()
