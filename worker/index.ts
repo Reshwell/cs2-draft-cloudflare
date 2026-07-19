@@ -118,18 +118,23 @@ function redirect(location: string, headers?: Headers): Response {
 }
 
 function base64UrlEncode(value: string): string {
-  return btoa(value).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')
+  return base64UrlEncodeBytes(new TextEncoder().encode(value))
 }
 
 function base64UrlEncodeBytes(bytes: Uint8Array): string {
   let binary = ''
   for (const byte of bytes) binary += String.fromCharCode(byte)
-  return base64UrlEncode(binary)
+  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')
+}
+
+function base64UrlDecodeBytes(value: string): Uint8Array {
+  const normalized = value.replaceAll('-', '+').replaceAll('_', '/')
+  const binary = atob(normalized + '='.repeat((4 - (normalized.length % 4)) % 4))
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0))
 }
 
 function base64UrlDecode(value: string): string {
-  const normalized = value.replaceAll('-', '+').replaceAll('_', '/')
-  return atob(normalized + '='.repeat((4 - (normalized.length % 4)) % 4))
+  return new TextDecoder().decode(base64UrlDecodeBytes(value))
 }
 
 function cookieValue(request: Request, name: string): string | null {
@@ -185,10 +190,11 @@ async function readSteamSession(request: Request, env: Env): Promise<SteamSessio
       false,
       ['verify'],
     )
+    const signatureBytes = new Uint8Array(base64UrlDecodeBytes(signature))
     const valid = await crypto.subtle.verify(
       'HMAC',
       key,
-      Uint8Array.from(base64UrlDecode(signature), (character) => character.charCodeAt(0)),
+      signatureBytes,
       new TextEncoder().encode(payload),
     )
     if (!valid) return null
