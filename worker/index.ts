@@ -20,13 +20,22 @@ const MAP_VETO_ORDER: TeamSide[] = ['A', 'B', 'B', 'A', 'A', 'B']
 interface Env {
   ROOMS: DurableObjectNamespace<DraftRoom>
   DIRECTORY: DurableObjectNamespace<RoomDirectory>
+  STEAM_SESSION_SECRET?: string
+  STEAM_API_KEY?: string
 }
 
 interface StoredPlayer {
   id: string
   name: string
+  steamId?: string
   tokenHash: string
   joinedAt: number
+}
+
+interface SteamSession {
+  steamId: string
+  steamName: string
+  expiresAt: number
 }
 
 interface StoredRoom {
@@ -76,9 +85,203 @@ interface ClientAction {
 
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8' }
 const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+const STEAM_SESSION_COOKIE = 'cs2_steam_session'
+const STEAM_LOGIN_STATE_COOKIE = 'cs2_steam_login_state'
+const STEAM_SESSION_MAX_AGE = 7 * 24 * 60 * 60
+const STEAM_LOGIN_STATE_MAX_AGE = 10 * 60
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: JSON_HEADERS })
+}
+
+function redirect(location: string, headers?: Headers): Response {
+  const responseHeaders = headers ?? new Headers()
+  responseHeaders.set('location', location)
+  return new Response(null, { status: 302, headers: responseHeaders })
+}
+
+function base64UrlEncode(value: string): string {
+  return btoa(value).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')
+}
+
+function base64UrlEncodeBytes(bytes: Uint8Array): string {
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return base64UrlEncode(binary)
+}
+
+function base64UrlDecode(value: string): string {
+  const normalized = value.replaceAll('-', '+').replaceAll('_', '/')
+  return atob(normalized + '='.repeat((4 - (normalized.length % 4)) % 4))
+}
+
+function cookieValue(request: Request, name: string): string | null {
+  const header = request.headers.get('cookie') ?? ''
+  for (const cookie of header.split(';')) {
+    const [key, ...value] = cookie.trim().split('=')
+    if (key === name) return value.join('=') || null
+  }
+  return null
+}
+
+function cookie(name: string, value: string, maxAge: number): string {
+  return `${name}=${value}; Max-Age=${maxAge}; Path=/; HttpOnly; Secure; SameSite=Lax`
+}
+
+function safeNextPath(value: string | null): string {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/'
+  return value
+}
+
+function sessionSecret(env: Env): string {
+  if (!env.STEAM_SESSION_SECRET) throw new Error('Steam 登录尚未配置会话密钥')
+  return env.STEAM_SESSION_SECRET
+}
+
+async function hmac(value: string, secret: string): Promise<ArrayBuffer> {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign', 'verify'],
+  )
+  return crypto.subtle.sign('HMAC', key, new TextEncoder().encode(value))
+}
+
+async function signedSessionCookie(session: SteamSession, env: Env): Promise<string> {
+  const payload = base64UrlEncode(JSON.stringify(session))
+  const signature = base64UrlEncodeBytes(new Uint8Array(await hmac(payload, sessionSecret(env))))
+  return `${payload}.${signature}`
+}
+
+async function readSteamSession(request: Request, env: Env): Promise<SteamSession | null> {
+  const raw = cookieValue(request, STEAM_SESSION_COOKIE)
+  if (!raw) return null
+  const [payload, signature] = raw.split('.')
+  if (!payload || !signature) return null
+  try {
+    const key = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(sessionSecret(env)),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify'],
+    )
+    const valid = await crypto.subtle.verify(
+      'HMAC',
+      key,
+      Uint8Array.from(base64UrlDecode(signature), (character) => character.charCodeAt(0)),
+      new TextEncoder().encode(payload),
+    )
+    if (!valid) return null
+    const session = JSON.parse(base64UrlDecode(payload)) as SteamSession
+    if (!/^\d{17}$/.test(session.steamId) || typeof session.steamName !== 'string' || !session.steamName || session.expiresAt <= Date.now()) return null
+    return session
+  } catch {
+    return null
+  }
+}
+
+async function steamLogin(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url)
+  const next = safeNextPath(url.searchParams.get('next'))
+  const state = randomToken()
+  const callback = new URL('/api/auth/steam/callback', url.origin)
+  callback.searchParams.set('state', state)
+  callback.searchParams.set('next', next)
+
+  const steamUrl = new URL('https://steamcommunity.com/openid/login')
+  steamUrl.searchParams.set('openid.ns', 'http://specs.openid.net/auth/2.0')
+  steamUrl.searchParams.set('openid.mode', 'checkid_setup')
+  steamUrl.searchParams.set('openid.return_to', callback.toString())
+  steamUrl.searchParams.set('openid.realm', url.origin)
+  steamUrl.searchParams.set('openid.identity', 'http://specs.openid.net/auth/2.0/identifier_select')
+  steamUrl.searchParams.set('openid.claimed_id', 'http://specs.openid.net/auth/2.0/identifier_select')
+
+  const headers = new Headers()
+  headers.append('set-cookie', cookie(STEAM_LOGIN_STATE_COOKIE, state, STEAM_LOGIN_STATE_MAX_AGE))
+  return redirect(steamUrl.toString(), headers)
+}
+
+async function steamCallback(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url)
+  const state = url.searchParams.get('state')
+  const savedState = cookieValue(request, STEAM_LOGIN_STATE_COOKIE)
+  if (!state || !savedState || state !== savedState) return json({ error: 'Steam 登录状态已失效，请重试' }, 400)
+
+  const next = safeNextPath(url.searchParams.get('next'))
+  const returnTo = url.searchParams.get('openid.return_to')
+  const expectedReturnTo = new URL('/api/auth/steam/callback', url.origin)
+  expectedReturnTo.searchParams.set('state', state)
+  expectedReturnTo.searchParams.set('next', next)
+  if (returnTo !== expectedReturnTo.toString()) return json({ error: 'Steam 登录回调地址校验失败' }, 400)
+  if (url.searchParams.get('openid.mode') !== 'id_res') return json({ error: 'Steam 登录未完成' }, 400)
+  if (url.searchParams.get('openid.op_endpoint') !== 'https://steamcommunity.com/openid/login') {
+    return json({ error: 'Steam 登录来源校验失败' }, 400)
+  }
+
+  const verification = new URLSearchParams()
+  for (const [key, value] of url.searchParams) {
+    if (key.startsWith('openid.')) verification.set(key, value)
+  }
+  verification.set('openid.mode', 'check_authentication')
+  const verificationResponse = await fetch('https://steamcommunity.com/openid/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: verification,
+  })
+  const verificationText = await verificationResponse.text()
+  if (!verificationResponse.ok || !/^is_valid:true\s*$/m.test(verificationText)) {
+    return json({ error: 'Steam 登录验证失败，请重试' }, 400)
+  }
+
+  const claimedId = url.searchParams.get('openid.claimed_id') ?? ''
+  const steamId = claimedId.match(/^https?:\/\/steamcommunity\.com\/openid\/id\/(\d{17})$/i)?.[1]
+  if (!steamId) return json({ error: '无法读取 Steam ID' }, 400)
+
+  let steamName: string
+  try {
+    steamName = await fetchSteamName(steamId, env)
+  } catch (error) {
+    return json({ error: errorMessage(error) }, 503)
+  }
+
+  const session: SteamSession = { steamId, steamName, expiresAt: Date.now() + STEAM_SESSION_MAX_AGE * 1000 }
+  const headers = new Headers()
+  headers.append('set-cookie', cookie(STEAM_SESSION_COOKIE, await signedSessionCookie(session, env), STEAM_SESSION_MAX_AGE))
+  headers.append('set-cookie', cookie(STEAM_LOGIN_STATE_COOKIE, '', 0))
+  return redirect(new URL(next, url.origin).toString(), headers)
+}
+
+async function steamMe(request: Request, env: Env): Promise<Response> {
+  try {
+    const session = await readSteamSession(request, env)
+    return json({ authenticated: Boolean(session), steamId: session?.steamId ?? null, steamName: session?.steamName ?? null })
+  } catch (error) {
+    return json({ error: errorMessage(error) }, 503)
+  }
+}
+
+async function fetchSteamName(steamId: string, env: Env): Promise<string> {
+  if (!env.STEAM_API_KEY) throw new Error('Steam Web API Key 尚未配置')
+  const apiUrl = new URL('https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/')
+  apiUrl.searchParams.set('key', env.STEAM_API_KEY)
+  apiUrl.searchParams.set('steamids', steamId)
+  const response = await fetch(apiUrl)
+  if (!response.ok) throw new Error('Steam 昵称获取失败，请稍后重试')
+  const data = await response.json().catch(() => null) as {
+    response?: { players?: Array<{ personaname?: string }> }
+  } | null
+  const steamName = data?.response?.players?.[0]?.personaname?.trim()
+  if (!steamName) throw new Error('Steam 账号没有可用昵称')
+  return steamName
+}
+
+function steamLogout(): Response {
+  const headers = new Headers()
+  headers.append('set-cookie', cookie(STEAM_SESSION_COOKIE, '', 0))
+  return json({ ok: true }, 200)
 }
 
 function normalizeCode(value: string): string {
@@ -167,6 +370,30 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
 
+    if (url.pathname === '/api/auth/steam/login' && request.method === 'GET') {
+      try {
+        return await steamLogin(request, env)
+      } catch (error) {
+        return json({ error: errorMessage(error) }, 503)
+      }
+    }
+
+    if (url.pathname === '/api/auth/steam/callback' && request.method === 'GET') {
+      try {
+        return await steamCallback(request, env)
+      } catch (error) {
+        return json({ error: errorMessage(error) }, 503)
+      }
+    }
+
+    if (url.pathname === '/api/auth/steam/me' && request.method === 'GET') {
+      return steamMe(request, env)
+    }
+
+    if (url.pathname === '/api/auth/steam/logout' && request.method === 'POST') {
+      return steamLogout()
+    }
+
     if (url.pathname === '/api/health') {
       return json({ ok: true, service: 'cs2-draft-room' })
     }
@@ -178,10 +405,12 @@ export default {
     if (url.pathname === '/api/rooms' && request.method === 'POST') {
       const body = await request.json().catch(() => null) as Record<string, unknown> | null
       if (!body) return json({ error: '请求内容不是有效 JSON' }, 400)
+      const session = await readSteamSession(request, env)
+      if (!session) return json({ error: '请先使用 Steam 登录' }, 401)
 
       for (let attempt = 0; attempt < 6; attempt += 1) {
         const code = randomRoomCode()
-        const response = await forwardJson(roomStub(env, code), '/create', { ...body, code })
+        const response = await forwardJson(roomStub(env, code), '/create', { ...body, code, steamId: session.steamId, steamName: session.steamName })
         if (response.status !== 409) return response
       }
       return json({ error: '暂时无法生成房间号，请重试' }, 503)
@@ -191,7 +420,13 @@ export default {
     if (joinMatch && request.method === 'POST') {
       const code = normalizeCode(joinMatch[1])
       const body = await request.json().catch(() => null)
-      return forwardJson(roomStub(env, code), '/join', body)
+      const session = await readSteamSession(request, env)
+      if (!session) return json({ error: '请先使用 Steam 登录' }, 401)
+      return forwardJson(roomStub(env, code), '/join', {
+        ...(body && typeof body === 'object' ? body : {}),
+        steamId: session.steamId,
+        steamName: session.steamName,
+      })
     }
 
     const stateMatch = url.pathname.match(/^\/api\/rooms\/([A-Za-z0-9]{4,10})\/state$/)
@@ -258,7 +493,8 @@ export class DraftRoom extends DurableObject<Env> {
     try {
       const body = await request.json() as Record<string, unknown>
       const code = normalizeCode(String(body.code ?? ''))
-      const name = normalizeText(body.name, '游戏昵称', 2, 24)
+      const name = normalizeText(body.steamName, 'Steam 昵称', 1, 64)
+      const steamId = normalizeText(body.steamId, 'Steam ID', 17, 17)
       const token = randomToken()
       const playerId = crypto.randomUUID()
       const now = Date.now()
@@ -267,7 +503,7 @@ export class DraftRoom extends DurableObject<Env> {
         status: 'waiting',
         capacity: MAX_PLAYERS,
         hostPlayerId: playerId,
-        players: [{ id: playerId, name, tokenHash: await hashToken(token), joinedAt: now }],
+        players: [{ id: playerId, name, steamId, tokenHash: await hashToken(token), joinedAt: now }],
         captainAId: null,
         captainBId: null,
         teamAIds: [],
@@ -298,8 +534,12 @@ export class DraftRoom extends DurableObject<Env> {
       if (this.room.status !== 'waiting') throw new Error('选人已经开始，不能再加入')
       if (this.room.players.length >= this.room.capacity) throw new Error('房间已经满员')
       const body = await request.json() as Record<string, unknown>
-      const name = normalizeText(body.name, '游戏昵称', 2, 24)
+      const name = normalizeText(body.steamName, 'Steam 昵称', 1, 64)
+      const steamId = normalizeText(body.steamId, 'Steam ID', 17, 17)
       const nameKey = name.toLocaleLowerCase()
+      if (this.room.players.some((player) => player.steamId === steamId)) {
+        throw new Error('这个 Steam 账号已经在房间中')
+      }
       if (this.room.players.some((player) => player.name.toLocaleLowerCase() === nameKey)) {
         throw new Error('这个游戏昵称已经有人使用')
       }
@@ -309,6 +549,7 @@ export class DraftRoom extends DurableObject<Env> {
       this.room.players.push({
         id: playerId,
         name,
+        steamId,
         tokenHash: await hashToken(token),
         joinedAt: Date.now(),
       })

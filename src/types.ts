@@ -52,6 +52,11 @@ export interface SessionCredentials {
   token: string
 }
 
+export interface SteamUser {
+  steamId: string
+  steamName: string
+}
+
 export type ClientAction =
   | { type: 'set_captains'; captainAId: string; captainBId: string }
   | { type: 'random_captains' }

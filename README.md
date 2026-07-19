@@ -14,7 +14,7 @@
 - 浏览器随机令牌恢复身份
 - 复制邀请链接和最终阵容
 
-> 玩家只需填写昵称。
+> 玩家使用 Steam 登录，房间昵称自动读取 Steam 昵称。
 
 ## 环境要求
 
@@ -38,6 +38,15 @@ Vite 会显示本地地址。创建房间后，可以用不同浏览器、隐私
 ```bash
 npx wrangler login
 ```
+
+Steam 登录需要配置两个 Cloudflare Secret：
+
+```bash
+npx wrangler secret put STEAM_SESSION_SECRET
+npx wrangler secret put STEAM_API_KEY
+```
+
+`STEAM_SESSION_SECRET` 用于签名登录会话；`STEAM_API_KEY` 使用 Steam Web API Key。不要把这两个值写进代码或提交到 Git。
 
 然后部署：
 
@@ -66,7 +75,7 @@ https://cs2-draft-room.<你的子域>.workers.dev
 ## 房间流程
 
 1. 房主创建房间，设置队长后即可开始。
-2. 玩家通过邀请链接进入，填写昵称。
+2. 玩家通过 Steam 登录后进入邀请链接，房间昵称自动使用 Steam 昵称。
 3. 房主手动或随机指定两名队长。
 4. 房主点击“开始选人”。
 5. 两位队长按 `A → B → B → A` 循环选择。
@@ -87,7 +96,7 @@ wrangler.jsonc      Cloudflare 部署配置
 - 玩家身份令牌保存在浏览器 LocalStorage 中。
 - Durable Object 只保存令牌的 SHA-256 摘要。
 - WebSocket 连接会校验令牌，队长与房主权限由后端判断。
-- 房间号不是密码。拿到邀请链接的人可以加入尚未满员的房间。
+- 房间号不是密码。拿到邀请链接且已 Steam 登录的人可以加入尚未满员的房间。
 
 ## 后续可添加
 
@@ -97,4 +106,4 @@ wrangler.jsonc      Cloudflare 部署配置
 - 玩家主动退出/房主转移
 - 管理员封禁名单
 - D1 历史记录和战绩
-- Steam OpenID 登录
+- Steam OpenID 登录和 Steam 昵称同步

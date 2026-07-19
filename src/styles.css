@@ -31,6 +31,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .page-shell { width: min(1160px, calc(100% - 32px)); margin: 0 auto; padding: 42px 0 68px; }
 .home-shell { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; }
 .hero { max-width: 760px; margin-bottom: 26px; }
+.hero-account { margin-top: 22px; }
 .hero h1, .room-header h1, .join-panel h1 { margin: 8px 0 10px; font-size: clamp(2.35rem, 6vw, 4.6rem); letter-spacing: -0.06em; line-height: .96; }
 .hero p, .room-header p, .join-panel > p { color: var(--muted); font-size: .98rem; line-height: 1.6; }
 .eyebrow { color: var(--accent); letter-spacing: .2em; font-weight: 850; font-size: .7rem; }
@@ -59,6 +60,15 @@ input:focus, select:focus { border-color: rgba(244,184,64,.8); box-shadow: 0 0 0
 .secondary-button { background: #263140; color: white; border: 1px solid rgba(255,255,255,.08); }
 .danger-button { background: rgba(255,98,98,.16); color: #ff8d8d; border: 1px solid rgba(255,98,98,.3); }
 .primary-button:hover:not(:disabled), .secondary-button:hover:not(:disabled), .danger-button:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.08); }
+.steam-login-button { border: 1px solid rgba(102, 192, 244, .45); border-radius: 12px; padding: 13px 17px; color: #eaf7ff; background: linear-gradient(135deg, #1b6ca8, #17466d); font-weight: 850; box-shadow: 0 8px 22px rgba(27,108,168,.18); transition: transform .15s ease, filter .15s ease; }
+.steam-login-button:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.1); }
+.steam-login-button.compact { padding: 9px 12px; font-size: .82rem; }
+.steam-account { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 7px 12px; border: 1px solid rgba(102,192,244,.2); border-radius: 12px; color: #dff3ff; background: rgba(25, 67, 96, .32); }
+.steam-account.compact { min-height: 34px; padding: 4px 9px; font-size: .82rem; }
+.steam-account-name { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; }
+.steam-avatar-mark { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; color: #fff; background: #1b75ae; font-weight: 950; }
+.steam-account .text-button { color: #9fd5f5; font-size: .78rem; }
+.form-note { margin: 11px 0 0; color: var(--muted); font-size: .82rem; line-height: 1.45; }
 .compact { padding: 10px 14px; font-size: .82rem; }
 .primary-button:focus-visible, .secondary-button:focus-visible, .danger-button:focus-visible, .text-button:focus-visible, .map-card:focus-visible, .pick-player-card:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 3px; }
 .feature-list { display: grid; gap: 10px; margin-top: 26px; color: var(--muted); font-size: .9rem; }

@@ -5,6 +5,7 @@ import type {
   PublicRoomState,
   ServerMessage,
   SessionCredentials,
+  SteamUser,
   TeamSide,
 } from './types'
 
@@ -65,11 +66,65 @@ function useRoute() {
 
 export default function App() {
   const roomCode = useRoute()
-  return roomCode ? <RoomPage roomCode={roomCode} /> : <HomePage />
+  const steam = useSteamAuth()
+  return roomCode ? <RoomPage roomCode={roomCode} steam={steam} /> : <HomePage steam={steam} />
 }
 
-function HomePage() {
-  const [createName, setCreateName] = useState('')
+interface SteamAuthState {
+  user: SteamUser | null
+  loading: boolean
+  refresh: () => Promise<void>
+  logout: () => Promise<void>
+}
+
+function useSteamAuth(): SteamAuthState {
+  const [user, setUser] = useState<SteamUser | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const refresh = async () => {
+    try {
+      const result = await apiJson<{ authenticated: boolean; steamId: string | null; steamName: string | null }>('/api/auth/steam/me')
+      setUser(result.authenticated && result.steamId && result.steamName
+        ? { steamId: result.steamId, steamName: result.steamName }
+        : null)
+    } catch {
+      setUser(null)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void refresh()
+  }, [])
+
+  const logout = async () => {
+    await apiJson<{ ok: boolean }>('/api/auth/steam/logout', { method: 'POST' }).catch(() => undefined)
+    setUser(null)
+  }
+
+  return { user, loading, refresh, logout }
+}
+
+function steamLogin(next = window.location.pathname) {
+  window.location.assign(`/api/auth/steam/login?next=${encodeURIComponent(next || '/')}`)
+}
+
+function SteamAccount({ steam, compact = false }: { steam: SteamAuthState; compact?: boolean }) {
+  if (steam.loading) return <span className="steam-account muted">检查 Steam 登录…</span>
+  if (!steam.user) {
+    return <button className={`steam-login-button ${compact ? 'compact' : ''}`} onClick={() => steamLogin()} type="button">使用 Steam 登录</button>
+  }
+  return (
+    <div className={`steam-account ${compact ? 'compact' : ''}`}>
+      <span className="steam-avatar-mark">S</span>
+      <span className="steam-account-name">{steam.user.steamName}</span>
+      <button className="text-button" onClick={() => void steam.logout()} type="button">退出</button>
+    </div>
+  )
+}
+
+function HomePage({ steam }: { steam: SteamAuthState }) {
   const [joinCode, setJoinCode] = useState('')
   const [activeRooms, setActiveRooms] = useState<Array<{ code: string; playerCount: number; maxPlayers: number }>>([])
   const [roomsLoading, setRoomsLoading] = useState(true)
@@ -107,7 +162,7 @@ function HomePage() {
         token: string
       }>('/api/rooms', {
         method: 'POST',
-        body: JSON.stringify({ name: createName }),
+        body: JSON.stringify({}),
       })
       saveSession({ roomCode: result.roomCode, playerId: result.playerId, token: result.token })
       navigate(`/room/${result.roomCode}`)
@@ -134,6 +189,7 @@ function HomePage() {
         <div className="eyebrow">CS2 DRAFT ROOM</div>
         <h1>CS2 队长选人</h1>
         <p>最多 12 人 · 实时同步 · BO1 地图禁选</p>
+        <div className="hero-account"><SteamAccount steam={steam} /></div>
       </section>
 
       <section className="home-grid">
@@ -144,20 +200,11 @@ function HomePage() {
             </div>
           </div>
 
-          <label>
-            游戏昵称
-            <input
-              value={createName}
-              onChange={(event) => setCreateName(event.target.value)}
-              minLength={2}
-              maxLength={24}
-              placeholder="例如：Aki"
-              required
-            />
-          </label>
-          <button className="primary-button" disabled={busy} type="submit">
+          <p className="form-note">房间内昵称自动使用 Steam 昵称</p>
+          <button className="primary-button" disabled={busy || !steam.user} type="submit">
             {busy ? '创建中…' : '创建房间'}
           </button>
+          {!steam.user && <p className="form-note">请先登录 Steam</p>}
         </form>
 
         <form className="panel" onSubmit={openRoom}>
@@ -177,7 +224,8 @@ function HomePage() {
               required
             />
           </label>
-          <button className="secondary-button" type="submit">加入房间</button>
+          <button className="secondary-button" disabled={!steam.user} type="submit">加入房间</button>
+          {!steam.user && <p className="form-note">请先登录 Steam</p>}
         </form>
       </section>
 
@@ -215,7 +263,7 @@ function HomePage() {
   )
 }
 
-function RoomPage({ roomCode }: { roomCode: string }) {
+function RoomPage({ roomCode, steam }: { roomCode: string; steam: SteamAuthState }) {
   const [session, setSession] = useState<SessionCredentials | null>(() => loadSession(roomCode))
   const [state, setState] = useState<PublicRoomState | null>(null)
   const [connection, setConnection] = useState<'connecting' | 'online' | 'offline'>('connecting')
@@ -295,7 +343,7 @@ function RoomPage({ roomCode }: { roomCode: string }) {
   }
 
   if (!session) {
-    return <JoinRoom roomCode={roomCode} onJoined={setSession} error={error} setError={setError} />
+    return <JoinRoom roomCode={roomCode} steam={steam} onJoined={setSession} error={error} setError={setError} />
   }
 
   if (!state) {
@@ -319,16 +367,17 @@ function RoomPage({ roomCode }: { roomCode: string }) {
 
 function JoinRoom({
   roomCode,
+  steam,
   onJoined,
   error,
   setError,
 }: {
   roomCode: string
+  steam: SteamAuthState
   onJoined: (session: SessionCredentials) => void
   error: string
   setError: (message: string) => void
 }) {
-  const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
 
   async function join(event: FormEvent) {
@@ -338,7 +387,7 @@ function JoinRoom({
     try {
       const result = await apiJson<{ playerId: string; token: string }>(`/api/rooms/${roomCode}/join`, {
         method: 'POST',
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({}),
       })
       const nextSession = { roomCode, playerId: result.playerId, token: result.token }
       saveSession(nextSession)
@@ -356,14 +405,14 @@ function JoinRoom({
         <button type="button" className="text-button back-button" onClick={() => navigate('/')}>← 返回首页</button>
         <div className="room-code-badge">房间 {roomCode}</div>
         <h1>加入选人房间</h1>
-        <p className="muted">房间 {roomCode}</p>
-        <label>
-          游戏昵称
-          <input value={name} onChange={(event) => setName(event.target.value)} minLength={2} maxLength={24} required />
-        </label>
-        <button className="primary-button" disabled={busy} type="submit">
-          {busy ? '正在加入…' : '加入房间'}
-        </button>
+        <p className="muted">将使用 Steam 昵称加入：{steam.user?.steamName ?? '未登录'}</p>
+        {steam.user ? (
+          <button className="primary-button" disabled={busy} type="submit">
+            {busy ? '正在加入…' : '加入房间'}
+          </button>
+        ) : (
+          <button className="steam-login-button" onClick={() => steamLogin(`/room/${roomCode}`)} type="button">使用 Steam 登录</button>
+        )}
         {error && <div className="inline-error">{error}</div>}
       </form>
     </main>
