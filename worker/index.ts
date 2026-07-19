@@ -1145,7 +1145,8 @@ export class DraftRoom extends DurableObject<Env> {
       const now = Date.now()
       const playersToRefresh = this.room?.players.filter((player) => {
         if (!player.steamId) return false
-        return !player.avatarUrl || !player.rankCheckedAt || now - player.rankCheckedAt >= 60_000
+        const rankMissing = player.rankScore == null || player.rankTier == null
+        return !player.avatarUrl || !player.rankCheckedAt || now - player.rankCheckedAt >= 60_000 || (rankMissing && now - player.rankCheckedAt >= 10_000)
       }) ?? []
       if (playersToRefresh.length === 0) return
 
