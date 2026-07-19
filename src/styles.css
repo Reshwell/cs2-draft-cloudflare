@@ -205,9 +205,13 @@ input:focus, select:focus { border-color: var(--orange); box-shadow: 0 0 0 3px r
 .map-card.selectable:hover { background: linear-gradient(145deg, #382217, #18110e); border-color: var(--orange); transform: translateY(-1px); }
 .map-card.banned { opacity: .32; text-decoration: line-through; }
 .map-result-panel { text-align: center; padding: 50px 24px; }
+.result-kicker { color: var(--muted); font-size: .75rem; font-weight: 800; }
 .map-result-name { color: var(--orange); font-size: clamp(2.4rem, 8vw, 5rem); font-weight: 950; letter-spacing: -.07em; }
 .map-ban-summary { display: flex; justify-content: center; flex-wrap: wrap; gap: 7px; margin-top: 18px; }
 .map-ban-summary span { color: var(--muted); background: var(--surface-2); border: 1px solid var(--line); padding: 7px 10px; font-size: .72rem; }
+.final-teams-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+.map-result-panel .final-teams-grid { margin-top: 30px; text-align: left; }
+.map-result-panel .final-teams-grid .team-column { background: var(--surface-2); }
 .match-connect-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: min(520px, 100%); margin: 26px auto 0; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); text-align: left; }
 .match-connect-card div { display: grid; gap: 5px; min-width: 0; }
 .match-connect-card span { color: var(--muted); font-size: .7rem; }
@@ -249,4 +253,5 @@ input:focus, select:focus { border-color: var(--orange); box-shadow: 0 0 0 3px r
   .draft-footer > button { flex: 1; }
   .match-connect-card { align-items: stretch; flex-direction: column; }
   .match-connect-card .primary-button { justify-content: center; }
+  .final-teams-grid { grid-template-columns: 1fr; }
 }

@@ -537,9 +537,9 @@ function RoomDashboard({
 
       {state.status === 'map_veto' && <MapVetoBoard state={state} me={me} connection={connection} playerMap={playerMap} send={send} />}
 
-      {state.status === 'map_finished' && <MapResult state={state} me={me} send={send} copyResult={copyResult} />}
+      {state.status === 'map_finished' && <MapResult state={state} me={me} playerMap={playerMap} send={send} copyResult={copyResult} />}
 
-      {state.status === 'match_started' && <MatchStarted state={state} me={me} send={send} copyResult={copyResult} />}
+      {state.status === 'match_started' && <MatchStarted state={state} me={me} playerMap={playerMap} send={send} copyResult={copyResult} />}
 
       {state.status === 'closed' && (
         <section className="panel closed-panel">
@@ -838,11 +838,13 @@ function MapVetoBoard({
 function MapResult({
   state,
   me,
+  playerMap,
   send,
   copyResult,
 }: {
   state: PublicRoomState
   me: PublicPlayer
+  playerMap: Map<string, PublicPlayer>
   send: (action: ClientAction) => void
   copyResult: () => void
 }) {
@@ -856,6 +858,7 @@ function MapResult({
       </section>
 
       <section className="panel map-result-panel">
+        <div className="result-kicker">对局结果</div>
         <div className="map-result-name">{selectedMap?.name ?? '未确定'}</div>
         <div className="map-ban-summary">
           {state.maps.filter((map) => state.bannedMapIds.includes(map.id)).map((map) => (
@@ -863,6 +866,8 @@ function MapResult({
           ))}
         </div>
       </section>
+
+      <FinalTeams state={state} playerMap={playerMap} />
 
       <section className="draft-footer">
         {me.isHost && <button className="primary-button compact" onClick={() => send({ type: 'start_match' })}>开始竞技比赛</button>}
@@ -877,11 +882,13 @@ function MapResult({
 function MatchStarted({
   state,
   me,
+  playerMap,
   send,
   copyResult,
 }: {
   state: PublicRoomState
   me: PublicPlayer
+  playerMap: Map<string, PublicPlayer>
   send: (action: ClientAction) => void
   copyResult: () => void
 }) {
@@ -906,10 +913,20 @@ function MatchStarted({
           <span className="muted">无法获取服务器地址</span>
         )}
       </div>
+      <FinalTeams state={state} playerMap={playerMap} />
       <div className="draft-footer">
         <button className="secondary-button compact" onClick={copyResult}>复制对局信息</button>
         {me.isHost && <button className="secondary-button compact" onClick={() => send({ type: 'reset_room' })}>重置房间</button>}
       </div>
+    </section>
+  )
+}
+
+function FinalTeams({ state, playerMap }: { state: PublicRoomState; playerMap: Map<string, PublicPlayer> }) {
+  return (
+    <section className="final-teams-grid">
+      <TeamColumn side="A" ids={state.teamAIds} playerMap={playerMap} captainId={state.captainAId} />
+      <TeamColumn side="B" ids={state.teamBIds} playerMap={playerMap} captainId={state.captainBId} />
     </section>
   )
 }
