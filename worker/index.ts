@@ -17,9 +17,6 @@ const MAP_POOL = [
   { id: 'cache', name: 'Cache' },
 ] as const
 const MAP_VETO_ORDER: TeamSide[] = ['A', 'B', 'B', 'A', 'A', 'B']
-const RANK_ENDPOINT = 'http://49.234.27.68:27000/rank.php'
-const RANK_HOST = '49.234.27.68'
-const RANK_PORT = 27000
 
 interface Env {
   ROOMS: DurableObjectNamespace<DraftRoom>
@@ -315,156 +312,6 @@ async function fetchSteamProfile(steamId: string, env: Env): Promise<{ steamName
   return { steamName, avatarUrl }
 }
 
-interface RankEntry {
-  steamId: string
-  score: number
-  tier: string | null
-}
-
-function parseRankEntries(html: string): RankEntry[] {
-  const entries: RankEntry[] = []
-  const pattern = /<div class="cell cell1"[^>]*data-steamid="(\d{17})"[\s\S]*?<div class="cell" data-title="段位"[^>]*>\s*([^<]*?)\s*<\/div>\s*<div class="cell" data-title="分数">\s*([\d,]+)\s*<\/div>/g
-  for (const match of html.matchAll(pattern)) {
-    const score = Number.parseInt(match[3].replaceAll(',', ''), 10)
-    if (Number.isFinite(score)) entries.push({ steamId: match[1], score, tier: match[2].trim() || null })
-  }
-  return entries
-}
-
-function maxRankPage(html: string): number {
-  let maxPage = 1
-  const pattern = /[?&]page=(\d+)/g
-  for (const match of html.matchAll(pattern)) maxPage = Math.max(maxPage, Number.parseInt(match[1], 10))
-  return Math.min(maxPage, 25)
-}
-
-function decodeChunkedBody(body: string): string {
-  let offset = 0
-  let output = ''
-  while (offset < body.length) {
-    const lineEnd = body.indexOf('\r\n', offset)
-    if (lineEnd < 0) throw new Error('排名服务分块响应无效')
-    const sizeText = body.slice(offset, lineEnd).split(';', 1)[0].trim()
-    const size = Number.parseInt(sizeText, 16)
-    if (!Number.isFinite(size) || size < 0) throw new Error('排名服务分块长度无效')
-    if (size === 0) break
-    const start = lineEnd + 2
-    const end = start + size
-    if (end > body.length) throw new Error('排名服务响应不完整')
-    output += body.slice(start, end)
-    offset = end + 2
-  }
-  return output
-}
-
-async function readRankChunk(reader: ReadableStreamDefaultReader<Uint8Array>, timeoutMs = 8_000) {
-  let timeout: ReturnType<typeof setTimeout> | undefined
-  try {
-    return await Promise.race([
-      reader.read(),
-      new Promise<never>((_, reject) => {
-        timeout = setTimeout(() => reject(new Error('排名服务连接超时')), timeoutMs)
-      }),
-    ])
-  } finally {
-    if (timeout) clearTimeout(timeout)
-  }
-}
-
-async function rankHttpGet(path: string): Promise<{ status: number; body: string }> {
-  const socket = connect({ hostname: RANK_HOST, port: RANK_PORT })
-  const writer = socket.writable.getWriter()
-  const reader = socket.readable.getReader()
-  try {
-    const request = [
-      `GET ${path} HTTP/1.1`,
-      `Host: ${RANK_HOST}`,
-      'Connection: close',
-      'Accept: text/html,application/xhtml+xml',
-      'Accept-Encoding: identity',
-      'User-Agent: Mozilla/5.0 (compatible; CS2-Draft-Room/1.0)',
-      '',
-      '',
-    ].join('\r\n')
-    await writer.write(new TextEncoder().encode(request))
-
-    const chunks: Uint8Array[] = []
-    let totalLength = 0
-    while (true) {
-      const result = await readRankChunk(reader)
-      if (result.done) break
-      if (result.value?.length) {
-        chunks.push(result.value)
-        totalLength += result.value.length
-      }
-    }
-
-    const responseBytes = new Uint8Array(totalLength)
-    let offset = 0
-    for (const chunk of chunks) {
-      responseBytes.set(chunk, offset)
-      offset += chunk.length
-    }
-    const responseText = new TextDecoder().decode(responseBytes)
-    const headerEnd = responseText.indexOf('\r\n\r\n')
-    if (headerEnd < 0) throw new Error('排名服务响应无效')
-    const header = responseText.slice(0, headerEnd)
-    let body = responseText.slice(headerEnd + 4)
-    const status = Number(header.match(/^HTTP\/\d(?:\.\d)?\s+(\d+)/)?.[1] ?? 0)
-    if (/^transfer-encoding:\s*chunked$/im.test(header)) body = decodeChunkedBody(body)
-    return { status, body }
-  } finally {
-    try { writer.releaseLock() } catch { /* Ignore release races. */ }
-    try { reader.releaseLock() } catch { /* Ignore release races. */ }
-    try { socket.close() } catch { /* Ignore close races. */ }
-  }
-}
-
-function rankPath(url: URL): string {
-  return `${url.pathname}${url.search}`
-}
-
-async function fetchRankEntry(steamId: string, steamName: string): Promise<RankEntry | null> {
-  const searchUrl = new URL(RANK_ENDPOINT)
-  searchUrl.searchParams.set('search', steamName)
-  searchUrl.searchParams.set('server', 'Server')
-  const searchResponse = await rankHttpGet(rankPath(searchUrl))
-  if (searchResponse.status >= 200 && searchResponse.status < 300) {
-    const searchEntries = parseRankEntries(searchResponse.body)
-    const match = searchEntries.find((entry) => entry.steamId === steamId)
-    if (match) return match
-  }
-
-  const firstUrl = new URL(RANK_ENDPOINT)
-  firstUrl.searchParams.set('server', 'Server')
-  const firstResponse = await rankHttpGet(rankPath(firstUrl))
-  if (firstResponse.status < 200 || firstResponse.status >= 300) return null
-  const firstHtml = firstResponse.body
-  const firstEntries = parseRankEntries(firstHtml)
-  const firstMatch = firstEntries.find((entry) => entry.steamId === steamId)
-  if (firstMatch) return firstMatch
-
-  for (let page = 2; page <= maxRankPage(firstHtml); page += 1) {
-    const pageUrl = new URL(RANK_ENDPOINT)
-    pageUrl.searchParams.set('server', 'Server')
-    pageUrl.searchParams.set('page', String(page))
-    const response = await rankHttpGet(rankPath(pageUrl))
-    if (response.status >= 200 && response.status < 300) {
-      const match = parseRankEntries(response.body).find((entry) => entry.steamId === steamId)
-      if (match) return match
-    }
-  }
-  return null
-}
-
-async function lookupRankEntry(steamId: string, steamName: string): Promise<RankEntry | null> {
-  try {
-    return await fetchRankEntry(steamId, steamName)
-  } catch {
-    return null
-  }
-}
-
 interface RconPacket {
   id: number
   type: number
@@ -753,7 +600,6 @@ export default {
       if (!body) return json({ error: '请求内容不是有效 JSON' }, 400)
       const session = await readSteamSession(request, env)
       if (!session) return json({ error: '请先使用 Steam 登录' }, 401)
-      const rankEntry = await lookupRankEntry(session.steamId, session.steamName)
 
       for (let attempt = 0; attempt < 6; attempt += 1) {
         const code = randomRoomCode()
@@ -763,8 +609,8 @@ export default {
           steamId: session.steamId,
           steamName: session.steamName,
           avatarUrl: session.avatarUrl,
-          rankScore: rankEntry?.score ?? null,
-          rankTier: rankEntry?.tier ?? null,
+          rankScore: null,
+          rankTier: null,
         })
         if (response.status !== 409) return response
       }
@@ -777,14 +623,13 @@ export default {
       const body = await request.json().catch(() => null)
       const session = await readSteamSession(request, env)
       if (!session) return json({ error: '请先使用 Steam 登录' }, 401)
-      const rankEntry = await lookupRankEntry(session.steamId, session.steamName)
       return forwardJson(roomStub(env, code), '/join', {
         ...(body && typeof body === 'object' ? body : {}),
         steamId: session.steamId,
         steamName: session.steamName,
         avatarUrl: session.avatarUrl,
-        rankScore: rankEntry?.score ?? null,
-        rankTier: rankEntry?.tier ?? null,
+        rankScore: null,
+        rankTier: null,
       })
     }
 
@@ -816,7 +661,6 @@ export default {
 export class DraftRoom extends DurableObject<Env> {
   private room: StoredRoom | null = null
   private actionChain: Promise<void> = Promise.resolve()
-  private profileRefresh: Promise<void> | null = null
   private readonly roomEnv: Env
 
   constructor(ctx: DurableObjectState, env: Env) {
@@ -835,7 +679,6 @@ export class DraftRoom extends DurableObject<Env> {
     if (url.pathname === '/match.json' && request.method === 'GET') return this.matchConfig(request)
     if (url.pathname === '/state' && request.method === 'GET') {
       if (!this.room) return json({ error: '房间不存在' }, 404)
-      await this.refreshMissingPlayerData()
       return json({ state: this.publicState() })
     }
     if (url.pathname.endsWith('/ws') && request.method === 'GET') return this.openSocket(request)
@@ -960,7 +803,6 @@ export class DraftRoom extends DurableObject<Env> {
       return json({ error: '需要 WebSocket Upgrade' }, 426)
     }
     if (!this.room) return this.closedSocketResponse(4404, 'room not found')
-    await this.refreshMissingPlayerData()
 
     const token = new URL(request.url).searchParams.get('token') ?? ''
     const tokenHash = await hashToken(token)
@@ -1236,43 +1078,14 @@ export class DraftRoom extends DurableObject<Env> {
     if (!this.room || actorId !== this.room.hostPlayerId) throw new Error('只有房主可以执行此操作')
   }
 
-  private async refreshMissingPlayerData(): Promise<void> {
-    if (!this.room || this.room.status !== 'waiting') return
-    if (this.profileRefresh) return this.profileRefresh
-
-    const refresh = async () => {
-      const now = Date.now()
-      const playersToRefresh = this.room?.players.filter((player) => {
-        if (!player.steamId) return false
-        const rankMissing = player.rankScore == null || player.rankTier == null
-        return !player.avatarUrl || !player.rankCheckedAt || now - player.rankCheckedAt >= 60_000 || (rankMissing && now - player.rankCheckedAt >= 10_000)
-      }) ?? []
-      if (playersToRefresh.length === 0) return
-
-      for (const player of playersToRefresh) {
-        if (!player.avatarUrl) {
-          try { player.avatarUrl = (await fetchSteamProfile(player.steamId!, this.roomEnv)).avatarUrl } catch { /* Keep the current profile data. */ }
-        }
-        const rankEntry = await lookupRankEntry(player.steamId!, player.name)
-        player.rankScore = rankEntry?.score ?? null
-        player.rankTier = rankEntry?.tier ?? null
-        player.rankCheckedAt = now
-      }
-      this.updateAutomaticCaptains()
-      await this.persist()
-    }
-
-    this.profileRefresh = refresh().finally(() => { this.profileRefresh = null })
-    await this.profileRefresh
-  }
-
   private updateAutomaticCaptains(): void {
     if (!this.room || this.room.captainsManual || this.room.status !== 'waiting') return
     const rankedPlayers = this.room.players
       .filter((player) => typeof player.rankScore === 'number')
       .sort((left, right) => (right.rankScore ?? -1) - (left.rankScore ?? -1) || left.joinedAt - right.joinedAt)
-    const captainA = rankedPlayers[0]
-    const captainB = rankedPlayers[1]
+    const captainCandidates = rankedPlayers.length >= 2 ? rankedPlayers : this.room.players
+    const captainA = captainCandidates[0]
+    const captainB = captainCandidates[1]
     this.room.captainAId = captainA?.id ?? null
     this.room.captainBId = captainB?.id ?? null
     this.room.teamAIds = captainA ? [captainA.id] : []
