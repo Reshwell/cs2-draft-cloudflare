@@ -71,6 +71,7 @@ export type ClientAction =
   | { type: 'ban_map'; mapId: string }
   | { type: 'pick_player'; playerId: string }
   | { type: 'kick_player'; playerId: string }
+  | { type: 'server_action'; serverAction: 'status' | 'restart_match' | 'restart_server' | 'kick_bots' | 'switch_map' | 'host_workshop_map' | 'kick_player'; mapId?: string; workshopId?: string; playerId?: string }
   | { type: 'reset_room' }
   | { type: 'close_room' }
 

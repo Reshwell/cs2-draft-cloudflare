@@ -1,4 +1,5 @@
 import { DurableObject } from 'cloudflare:workers'
+import { connect } from 'cloudflare:sockets'
 
 type TeamSide = 'A' | 'B'
 type RoomCapacity = 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12
@@ -23,6 +24,9 @@ interface Env {
   DIRECTORY: DurableObjectNamespace<RoomDirectory>
   STEAM_SESSION_SECRET?: string
   STEAM_API_KEY?: string
+  RCON_HOST?: string
+  RCON_PORT?: string
+  RCON_PASSWORD?: string
 }
 
 interface StoredPlayer {
@@ -88,6 +92,8 @@ interface ClientAction {
   playerId?: string
   mapId?: string
   firstPick?: boolean
+  serverAction?: 'status' | 'restart_match' | 'restart_server' | 'kick_bots' | 'switch_map' | 'host_workshop_map' | 'kick_player'
+  workshopId?: string
 }
 
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8' }
@@ -362,6 +368,137 @@ async function lookupRankEntry(steamId: string, steamName: string): Promise<Rank
     return await fetchRankEntry(steamId, steamName)
   } catch {
     return null
+  }
+}
+
+interface RconPacket {
+  id: number
+  type: number
+  body: string
+}
+
+class RconPacketReader {
+  private buffer = new Uint8Array()
+
+  constructor(private readonly reader: ReadableStreamDefaultReader<Uint8Array>) {}
+
+  async readPacket(): Promise<RconPacket> {
+    const sizeBytes = await this.readExact(4)
+    const size = new DataView(sizeBytes.buffer, sizeBytes.byteOffset, sizeBytes.byteLength).getInt32(0, true)
+    if (size < 10 || size > 1_048_576) throw new Error('RCON 返回数据包无效')
+    const payload = await this.readExact(size)
+    const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength)
+    const id = view.getInt32(0, true)
+    const type = view.getInt32(4, true)
+    const body = new TextDecoder().decode(payload.slice(8, Math.max(8, payload.length - 2)))
+    return { id, type, body }
+  }
+
+  release(): void {
+    try { this.reader.releaseLock() } catch { /* Ignore release races. */ }
+  }
+
+  private async readExact(length: number): Promise<Uint8Array> {
+    while (this.buffer.length < length) {
+      const result = await this.reader.read()
+      if (result.done || !result.value) throw new Error('RCON 连接已断开')
+      const combined = new Uint8Array(this.buffer.length + result.value.length)
+      combined.set(this.buffer)
+      combined.set(result.value, this.buffer.length)
+      this.buffer = combined
+    }
+    const output = this.buffer.slice(0, length)
+    this.buffer = this.buffer.slice(length)
+    return output
+  }
+}
+
+function rconPacket(id: number, type: number, body: string): Uint8Array {
+  const bodyBytes = new TextEncoder().encode(`${body}\0\0`)
+  const payload = new Uint8Array(8 + bodyBytes.length)
+  const view = new DataView(payload.buffer)
+  view.setInt32(0, id, true)
+  view.setInt32(4, type, true)
+  payload.set(bodyBytes, 8)
+  const packet = new Uint8Array(4 + payload.length)
+  new DataView(packet.buffer).setInt32(0, payload.length, true)
+  packet.set(payload, 4)
+  return packet
+}
+
+async function readRconPacketWithTimeout(reader: RconPacketReader, timeoutMs = 5000): Promise<RconPacket> {
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      reader.readPacket(),
+      new Promise<RconPacket>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error('RCON 连接超时')), timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timeout) clearTimeout(timeout)
+  }
+}
+
+async function rconExecute(command: string, env: Env): Promise<string> {
+  const host = env.RCON_HOST ?? '2561417364.fuzzys'
+  const port = Number(env.RCON_PORT ?? '27000')
+  if (!env.RCON_PASSWORD || !host || !Number.isInteger(port)) throw new Error('RCON 尚未配置')
+
+  const socket = connect({ hostname: host, port })
+  const writer = socket.writable.getWriter()
+  const packetReader = new RconPacketReader(socket.readable.getReader())
+  try {
+    await writer.write(rconPacket(1, 3, env.RCON_PASSWORD))
+    let authenticated = false
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const response = await readRconPacketWithTimeout(packetReader)
+      if (response.id === -1) throw new Error('RCON 密码错误或服务器拒绝连接')
+      if (response.id === 1) {
+        authenticated = true
+        break
+      }
+    }
+    if (!authenticated) throw new Error('RCON 认证失败')
+
+    await writer.write(rconPacket(2, 2, command))
+    if (command === 'quit') return '服务器重启指令已发送'
+    const response = await readRconPacketWithTimeout(packetReader)
+    return response.body.trim() || '指令已发送'
+  } finally {
+    try { writer.releaseLock() } catch { /* Ignore release races. */ }
+    packetReader.release()
+    try { socket.close() } catch { /* Ignore close races. */ }
+  }
+}
+
+function serverCommand(action: ClientAction, room: StoredRoom): string {
+  switch (action.serverAction) {
+    case 'status':
+      return 'status'
+    case 'restart_match':
+      return 'mp_restartgame 3'
+    case 'restart_server':
+      return 'quit'
+    case 'kick_bots':
+      return 'bot_kick'
+    case 'switch_map': {
+      const mapId = String(action.mapId ?? '')
+      if (!MAP_POOL.some((map) => map.id === mapId)) throw new Error('地图不在当前服役地图池')
+      return `map ${mapId}`
+    }
+    case 'host_workshop_map': {
+      const workshopId = String(action.workshopId ?? '').trim()
+      if (!/^\d{5,20}$/.test(workshopId)) throw new Error('创意工坊地图 ID 不正确')
+      return `host_workshop_map ${workshopId}`
+    }
+    case 'kick_player': {
+      const playerId = String(action.playerId ?? '').trim()
+      if (!/^\d+$/.test(playerId)) throw new Error('玩家服务器 ID 不正确')
+      return `kickid ${playerId}`
+    }
+    default:
+      throw new Error('不支持的服务器操作')
   }
 }
 
@@ -770,6 +907,8 @@ export class DraftRoom extends DurableObject<Env> {
       return
     }
 
+    let noticeMessage: string | null = null
+
     switch (action.type) {
       case 'set_captains': {
         this.requireHost(actorId)
@@ -920,6 +1059,13 @@ export class DraftRoom extends DurableObject<Env> {
         room.status = 'closed'
         break
       }
+      case 'server_action': {
+        this.requireHost(actorId)
+        const command = serverCommand(action, room)
+        const response = await rconExecute(command, this.roomEnv)
+        noticeMessage = `服务器指令已执行：${command}${response ? `\n${response}` : ''}`
+        break
+      }
       default:
         throw new Error('不支持的操作')
     }
@@ -927,6 +1073,7 @@ export class DraftRoom extends DurableObject<Env> {
     room.updatedAt = Date.now()
     await this.persist()
     this.broadcastState()
+    if (noticeMessage) this.broadcastNotice(noticeMessage)
 
     if (room.status === 'closed') {
       for (const ws of this.ctx.getWebSockets()) {
@@ -1092,6 +1239,13 @@ export class DraftRoom extends DurableObject<Env> {
 
   private sendError(socket: WebSocket, message: string): void {
     try { socket.send(JSON.stringify({ type: 'error', message })) } catch { /* Ignore closed sockets. */ }
+  }
+
+  private broadcastNotice(message: string): void {
+    const payload = JSON.stringify({ type: 'notice', message })
+    for (const ws of this.ctx.getWebSockets()) {
+      try { ws.send(payload) } catch { /* Ignore closed sockets. */ }
+    }
   }
 }
 

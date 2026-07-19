@@ -268,6 +268,7 @@ function RoomPage({ roomCode, steam }: { roomCode: string; steam: SteamAuthState
   const [state, setState] = useState<PublicRoomState | null>(null)
   const [connection, setConnection] = useState<'connecting' | 'online' | 'offline'>('connecting')
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const socketRef = useRef<WebSocket | null>(null)
   const retryRef = useRef<number | null>(null)
   const retryCountRef = useRef(0)
@@ -295,6 +296,7 @@ function RoomPage({ roomCode, steam }: { roomCode: string; steam: SteamAuthState
           const message = JSON.parse(event.data) as ServerMessage
           if (message.type === 'state') setState(message.state)
           if (message.type === 'error') setError(message.message)
+          if (message.type === 'notice') setNotice(message.message)
         } catch {
           setError('收到无法识别的服务器消息')
         }
@@ -362,7 +364,7 @@ function RoomPage({ roomCode, steam }: { roomCode: string; steam: SteamAuthState
   const me = state.players.find((player) => player.id === session.playerId) ?? null
   if (!me) return null
 
-  return <RoomDashboard state={state} me={me} connection={connection} error={error} send={send} />
+  return <RoomDashboard state={state} me={me} connection={connection} error={error} notice={notice} send={send} />
 }
 
 function JoinRoom({
@@ -419,17 +421,61 @@ function JoinRoom({
   )
 }
 
+function ServerControls({ state, send }: { state: PublicRoomState; send: (action: ClientAction) => void }) {
+  const [mapId, setMapId] = useState(state.selectedMapId ?? state.maps[0]?.id ?? '')
+  const [workshopId, setWorkshopId] = useState('')
+  const [serverPlayerId, setServerPlayerId] = useState('')
+
+  return (
+    <section className="panel server-controls">
+      <div className="section-title-row">
+        <div>
+          <h2>服务器控制</h2>
+          <p>仅房主可用 · 通过 RCON 控制 MatchZy 服务器</p>
+        </div>
+      </div>
+      <div className="server-action-row">
+        <button className="secondary-button compact" onClick={() => send({ type: 'server_action', serverAction: 'status' })}>读取状态</button>
+        <button className="secondary-button compact" onClick={() => send({ type: 'server_action', serverAction: 'restart_match' })}>重启比赛</button>
+        <button className="secondary-button compact" onClick={() => send({ type: 'server_action', serverAction: 'kick_bots' })}>踢出 BOT</button>
+        <button className="danger-button compact" onClick={() => send({ type: 'server_action', serverAction: 'restart_server' })}>重启服务器</button>
+      </div>
+      <div className="server-form-grid">
+        <label>
+          切换服务器地图
+          <select value={mapId} onChange={(event) => setMapId(event.target.value)}>
+            {state.maps.map((map) => <option key={map.id} value={map.id}>{map.name}</option>)}
+          </select>
+        </label>
+        <button className="secondary-button compact server-form-button" onClick={() => send({ type: 'server_action', serverAction: 'switch_map', mapId })}>切换地图</button>
+        <label>
+          创意工坊地图 ID
+          <input value={workshopId} onChange={(event) => setWorkshopId(event.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder="例如 123456789" />
+        </label>
+        <button className="secondary-button compact server-form-button" disabled={!workshopId} onClick={() => send({ type: 'server_action', serverAction: 'host_workshop_map', workshopId })}>加载工坊地图</button>
+        <label>
+          服务器玩家 ID
+          <input value={serverPlayerId} onChange={(event) => setServerPlayerId(event.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder="status 中的 ID" />
+        </label>
+        <button className="danger-button compact server-form-button" disabled={!serverPlayerId} onClick={() => send({ type: 'server_action', serverAction: 'kick_player', playerId: serverPlayerId })}>踢出玩家</button>
+      </div>
+    </section>
+  )
+}
+
 function RoomDashboard({
   state,
   me,
   connection,
   error,
+  notice,
   send,
 }: {
   state: PublicRoomState
   me: PublicPlayer
   connection: 'connecting' | 'online' | 'offline'
   error: string
+  notice: string
   send: (action: ClientAction) => void
 }) {
   const playerMap = useMemo(() => new Map(state.players.map((player) => [player.id, player])), [state.players])
@@ -482,6 +528,9 @@ function RoomDashboard({
       </section>
 
       {error && <div className="toast error-toast room-toast">{error}</div>}
+      {notice && <div className="toast notice-toast room-toast">{notice}</div>}
+
+      {me.isHost && <ServerControls state={state} send={send} />}
 
       {state.status === 'waiting' && (
         <WaitingRoom

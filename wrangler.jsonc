@@ -3,6 +3,10 @@
   "name": "cs2-draft-room",
   "main": "worker/index.ts",
   "compatibility_date": "2026-07-17",
+  "vars": {
+    "RCON_HOST": "2561417364.fuzzys",
+    "RCON_PORT": "27000"
+  },
   "assets": {
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"]
