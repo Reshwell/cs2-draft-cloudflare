@@ -4,7 +4,7 @@
   "main": "worker/index.ts",
   "compatibility_date": "2026-07-17",
   "vars": {
-    "RCON_HOST": "2561417364.fuzzys",
+    "RCON_HOST": "cd.csgo2.icu",
     "RCON_PORT": "27000"
   },
   "assets": {
