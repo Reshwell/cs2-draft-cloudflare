@@ -18,6 +18,8 @@ const MAP_POOL = [
 ] as const
 const MAP_VETO_ORDER: TeamSide[] = ['A', 'B', 'B', 'A', 'A', 'B']
 const RANK_ENDPOINT = 'http://49.234.27.68:27000/rank.php'
+const RANK_HOST = '49.234.27.68'
+const RANK_PORT = 27000
 
 interface Env {
   ROOMS: DurableObjectNamespace<DraftRoom>
@@ -104,12 +106,6 @@ const STEAM_SESSION_COOKIE = 'cs2_steam_session'
 const STEAM_LOGIN_STATE_COOKIE = 'cs2_steam_login_state'
 const STEAM_SESSION_MAX_AGE = 7 * 24 * 60 * 60
 const STEAM_LOGIN_STATE_MAX_AGE = 10 * 60
-const RANK_REQUEST_INIT: RequestInit = {
-  headers: {
-    accept: 'text/html,application/xhtml+xml',
-    'user-agent': 'Mozilla/5.0 (compatible; CS2-Draft-Room/1.0)',
-  },
-}
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: JSON_HEADERS })
@@ -334,35 +330,123 @@ function maxRankPage(html: string): number {
   return Math.min(maxPage, 25)
 }
 
+function decodeChunkedBody(body: string): string {
+  let offset = 0
+  let output = ''
+  while (offset < body.length) {
+    const lineEnd = body.indexOf('\r\n', offset)
+    if (lineEnd < 0) throw new Error('排名服务分块响应无效')
+    const sizeText = body.slice(offset, lineEnd).split(';', 1)[0].trim()
+    const size = Number.parseInt(sizeText, 16)
+    if (!Number.isFinite(size) || size < 0) throw new Error('排名服务分块长度无效')
+    if (size === 0) break
+    const start = lineEnd + 2
+    const end = start + size
+    if (end > body.length) throw new Error('排名服务响应不完整')
+    output += body.slice(start, end)
+    offset = end + 2
+  }
+  return output
+}
+
+async function readRankChunk(reader: ReadableStreamDefaultReader<Uint8Array>, timeoutMs = 8_000) {
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      reader.read(),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error('排名服务连接超时')), timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timeout) clearTimeout(timeout)
+  }
+}
+
+async function rankHttpGet(path: string): Promise<{ status: number; body: string }> {
+  const socket = connect({ hostname: RANK_HOST, port: RANK_PORT })
+  const writer = socket.writable.getWriter()
+  const reader = socket.readable.getReader()
+  try {
+    const request = [
+      `GET ${path} HTTP/1.1`,
+      `Host: ${RANK_HOST}`,
+      'Connection: close',
+      'Accept: text/html,application/xhtml+xml',
+      'Accept-Encoding: identity',
+      'User-Agent: Mozilla/5.0 (compatible; CS2-Draft-Room/1.0)',
+      '',
+      '',
+    ].join('\r\n')
+    await writer.write(new TextEncoder().encode(request))
+
+    const chunks: Uint8Array[] = []
+    let totalLength = 0
+    while (true) {
+      const result = await readRankChunk(reader)
+      if (result.done) break
+      if (result.value?.length) {
+        chunks.push(result.value)
+        totalLength += result.value.length
+      }
+    }
+
+    const responseBytes = new Uint8Array(totalLength)
+    let offset = 0
+    for (const chunk of chunks) {
+      responseBytes.set(chunk, offset)
+      offset += chunk.length
+    }
+    const responseText = new TextDecoder().decode(responseBytes)
+    const headerEnd = responseText.indexOf('\r\n\r\n')
+    if (headerEnd < 0) throw new Error('排名服务响应无效')
+    const header = responseText.slice(0, headerEnd)
+    let body = responseText.slice(headerEnd + 4)
+    const status = Number(header.match(/^HTTP\/\d(?:\.\d)?\s+(\d+)/)?.[1] ?? 0)
+    if (/^transfer-encoding:\s*chunked$/im.test(header)) body = decodeChunkedBody(body)
+    return { status, body }
+  } finally {
+    try { writer.releaseLock() } catch { /* Ignore release races. */ }
+    try { reader.releaseLock() } catch { /* Ignore release races. */ }
+    try { socket.close() } catch { /* Ignore close races. */ }
+  }
+}
+
+function rankPath(url: URL): string {
+  return `${url.pathname}${url.search}`
+}
+
 async function fetchRankEntry(steamId: string, steamName: string): Promise<RankEntry | null> {
   const searchUrl = new URL(RANK_ENDPOINT)
   searchUrl.searchParams.set('search', steamName)
   searchUrl.searchParams.set('server', 'Server')
-  const searchResponse = await fetch(searchUrl, RANK_REQUEST_INIT)
-  if (searchResponse.ok) {
-    const searchEntries = parseRankEntries(await searchResponse.text())
+  const searchResponse = await rankHttpGet(rankPath(searchUrl))
+  if (searchResponse.status >= 200 && searchResponse.status < 300) {
+    const searchEntries = parseRankEntries(searchResponse.body)
     const match = searchEntries.find((entry) => entry.steamId === steamId)
     if (match) return match
   }
 
   const firstUrl = new URL(RANK_ENDPOINT)
   firstUrl.searchParams.set('server', 'Server')
-  const firstResponse = await fetch(firstUrl, RANK_REQUEST_INIT)
-  if (!firstResponse.ok) return null
-  const firstHtml = await firstResponse.text()
+  const firstResponse = await rankHttpGet(rankPath(firstUrl))
+  if (firstResponse.status < 200 || firstResponse.status >= 300) return null
+  const firstHtml = firstResponse.body
   const firstEntries = parseRankEntries(firstHtml)
   const firstMatch = firstEntries.find((entry) => entry.steamId === steamId)
   if (firstMatch) return firstMatch
 
-  const pages = Array.from({ length: Math.max(0, maxRankPage(firstHtml) - 1) }, (_, index) => index + 2)
-  const pageEntries = await Promise.all(pages.map(async (page) => {
+  for (let page = 2; page <= maxRankPage(firstHtml); page += 1) {
     const pageUrl = new URL(RANK_ENDPOINT)
     pageUrl.searchParams.set('server', 'Server')
     pageUrl.searchParams.set('page', String(page))
-    const response = await fetch(pageUrl, RANK_REQUEST_INIT)
-    return response.ok ? parseRankEntries(await response.text()) : []
-  }))
-  return pageEntries.flat().find((entry) => entry.steamId === steamId) ?? null
+    const response = await rankHttpGet(rankPath(pageUrl))
+    if (response.status >= 200 && response.status < 300) {
+      const match = parseRankEntries(response.body).find((entry) => entry.steamId === steamId)
+      if (match) return match
+    }
+  }
+  return null
 }
 
 async function lookupRankEntry(steamId: string, steamName: string): Promise<RankEntry | null> {
