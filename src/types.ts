@@ -9,6 +9,9 @@ export interface MapOption {
 export interface PublicPlayer {
   id: string
   name: string
+  steamId: string | null
+  avatarUrl: string | null
+  rankScore: number | null
   joinedAt: number
   online: boolean
   isHost: boolean
@@ -55,6 +58,7 @@ export interface SessionCredentials {
 export interface SteamUser {
   steamId: string
   steamName: string
+  avatarUrl: string
 }
 
 export type ClientAction =

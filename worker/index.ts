@@ -16,6 +16,7 @@ const MAP_POOL = [
   { id: 'cache', name: 'Cache' },
 ] as const
 const MAP_VETO_ORDER: TeamSide[] = ['A', 'B', 'B', 'A', 'A', 'B']
+const RANK_ENDPOINT = 'http://49.234.27.68:27000/rank.php'
 
 interface Env {
   ROOMS: DurableObjectNamespace<DraftRoom>
@@ -28,6 +29,8 @@ interface StoredPlayer {
   id: string
   name: string
   steamId?: string
+  avatarUrl?: string
+  rankScore?: number | null
   tokenHash: string
   joinedAt: number
 }
@@ -35,6 +38,7 @@ interface StoredPlayer {
 interface SteamSession {
   steamId: string
   steamName: string
+  avatarUrl: string
   expiresAt: number
 }
 
@@ -46,6 +50,7 @@ interface StoredRoom {
   players: StoredPlayer[]
   captainAId: string | null
   captainBId: string | null
+  captainsManual?: boolean
   teamAIds: string[]
   teamBIds: string[]
   draftOrder: TeamSide[]
@@ -176,7 +181,7 @@ async function readSteamSession(request: Request, env: Env): Promise<SteamSessio
     )
     if (!valid) return null
     const session = JSON.parse(base64UrlDecode(payload)) as SteamSession
-    if (!/^\d{17}$/.test(session.steamId) || typeof session.steamName !== 'string' || !session.steamName || session.expiresAt <= Date.now()) return null
+    if (!/^\d{17}$/.test(session.steamId) || typeof session.steamName !== 'string' || !session.steamName || typeof session.avatarUrl !== 'string' || !session.avatarUrl || session.expiresAt <= Date.now()) return null
     return session
   } catch {
     return null
@@ -240,14 +245,19 @@ async function steamCallback(request: Request, env: Env): Promise<Response> {
   const steamId = claimedId.match(/^https?:\/\/steamcommunity\.com\/openid\/id\/(\d{17})$/i)?.[1]
   if (!steamId) return json({ error: '无法读取 Steam ID' }, 400)
 
-  let steamName: string
+  let steamProfile: { steamName: string; avatarUrl: string }
   try {
-    steamName = await fetchSteamName(steamId, env)
+    steamProfile = await fetchSteamProfile(steamId, env)
   } catch (error) {
     return json({ error: errorMessage(error) }, 503)
   }
 
-  const session: SteamSession = { steamId, steamName, expiresAt: Date.now() + STEAM_SESSION_MAX_AGE * 1000 }
+  const session: SteamSession = {
+    steamId,
+    steamName: steamProfile.steamName,
+    avatarUrl: steamProfile.avatarUrl,
+    expiresAt: Date.now() + STEAM_SESSION_MAX_AGE * 1000,
+  }
   const headers = new Headers()
   headers.append('set-cookie', cookie(STEAM_SESSION_COOKIE, await signedSessionCookie(session, env), STEAM_SESSION_MAX_AGE))
   headers.append('set-cookie', cookie(STEAM_LOGIN_STATE_COOKIE, '', 0))
@@ -257,13 +267,18 @@ async function steamCallback(request: Request, env: Env): Promise<Response> {
 async function steamMe(request: Request, env: Env): Promise<Response> {
   try {
     const session = await readSteamSession(request, env)
-    return json({ authenticated: Boolean(session), steamId: session?.steamId ?? null, steamName: session?.steamName ?? null })
+    return json({
+      authenticated: Boolean(session),
+      steamId: session?.steamId ?? null,
+      steamName: session?.steamName ?? null,
+      avatarUrl: session?.avatarUrl ?? null,
+    })
   } catch (error) {
     return json({ error: errorMessage(error) }, 503)
   }
 }
 
-async function fetchSteamName(steamId: string, env: Env): Promise<string> {
+async function fetchSteamProfile(steamId: string, env: Env): Promise<{ steamName: string; avatarUrl: string }> {
   if (!env.STEAM_API_KEY) throw new Error('Steam Web API Key 尚未配置')
   const apiUrl = new URL('https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/')
   apiUrl.searchParams.set('key', env.STEAM_API_KEY)
@@ -271,11 +286,74 @@ async function fetchSteamName(steamId: string, env: Env): Promise<string> {
   const response = await fetch(apiUrl)
   if (!response.ok) throw new Error('Steam 昵称获取失败，请稍后重试')
   const data = await response.json().catch(() => null) as {
-    response?: { players?: Array<{ personaname?: string }> }
+    response?: { players?: Array<{ personaname?: string; avatarfull?: string; avatarmedium?: string; avatar?: string }> }
   } | null
-  const steamName = data?.response?.players?.[0]?.personaname?.trim()
-  if (!steamName) throw new Error('Steam 账号没有可用昵称')
-  return steamName
+  const player = data?.response?.players?.[0]
+  const steamName = player?.personaname?.trim()
+  const avatarUrl = player?.avatarfull || player?.avatarmedium || player?.avatar
+  if (!steamName || !avatarUrl) throw new Error('Steam 账号没有可用昵称或头像')
+  return { steamName, avatarUrl }
+}
+
+interface RankEntry {
+  steamId: string
+  score: number
+}
+
+function parseRankEntries(html: string): RankEntry[] {
+  const entries: RankEntry[] = []
+  const pattern = /<div class="cell cell1"[^>]*data-steamid="(\d{17})"[\s\S]*?<div class="cell" data-title="分数">\s*([\d,]+)\s*<\/div>/g
+  for (const match of html.matchAll(pattern)) {
+    const score = Number.parseInt(match[2].replaceAll(',', ''), 10)
+    if (Number.isFinite(score)) entries.push({ steamId: match[1], score })
+  }
+  return entries
+}
+
+function maxRankPage(html: string): number {
+  let maxPage = 1
+  const pattern = /[?&]page=(\d+)/g
+  for (const match of html.matchAll(pattern)) maxPage = Math.max(maxPage, Number.parseInt(match[1], 10))
+  return Math.min(maxPage, 25)
+}
+
+async function fetchRankScore(steamId: string, steamName: string): Promise<number | null> {
+  const searchUrl = new URL(RANK_ENDPOINT)
+  searchUrl.searchParams.set('search', steamName)
+  searchUrl.searchParams.set('server', 'Server')
+  const searchResponse = await fetch(searchUrl)
+  if (searchResponse.ok) {
+    const searchEntries = parseRankEntries(await searchResponse.text())
+    const match = searchEntries.find((entry) => entry.steamId === steamId)
+    if (match) return match.score
+  }
+
+  const firstUrl = new URL(RANK_ENDPOINT)
+  firstUrl.searchParams.set('server', 'Server')
+  const firstResponse = await fetch(firstUrl)
+  if (!firstResponse.ok) return null
+  const firstHtml = await firstResponse.text()
+  const firstEntries = parseRankEntries(firstHtml)
+  const firstMatch = firstEntries.find((entry) => entry.steamId === steamId)
+  if (firstMatch) return firstMatch.score
+
+  const pages = Array.from({ length: Math.max(0, maxRankPage(firstHtml) - 1) }, (_, index) => index + 2)
+  const pageEntries = await Promise.all(pages.map(async (page) => {
+    const pageUrl = new URL(RANK_ENDPOINT)
+    pageUrl.searchParams.set('server', 'Server')
+    pageUrl.searchParams.set('page', String(page))
+    const response = await fetch(pageUrl)
+    return response.ok ? parseRankEntries(await response.text()) : []
+  }))
+  return pageEntries.flat().find((entry) => entry.steamId === steamId)?.score ?? null
+}
+
+async function lookupRankScore(steamId: string, steamName: string): Promise<number | null> {
+  try {
+    return await fetchRankScore(steamId, steamName)
+  } catch {
+    return null
+  }
 }
 
 function steamLogout(): Response {
@@ -340,6 +418,11 @@ function teamTargetSize(side: TeamSide, capacity: RoomCapacity): number {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '服务器发生未知错误'
+}
+
+function optionalRankScore(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null
+  return Math.max(0, Math.floor(value))
 }
 
 function roomStub(env: Env, code: string): DurableObjectStub<DraftRoom> {
@@ -407,10 +490,18 @@ export default {
       if (!body) return json({ error: '请求内容不是有效 JSON' }, 400)
       const session = await readSteamSession(request, env)
       if (!session) return json({ error: '请先使用 Steam 登录' }, 401)
+      const rankScore = await lookupRankScore(session.steamId, session.steamName)
 
       for (let attempt = 0; attempt < 6; attempt += 1) {
         const code = randomRoomCode()
-        const response = await forwardJson(roomStub(env, code), '/create', { ...body, code, steamId: session.steamId, steamName: session.steamName })
+        const response = await forwardJson(roomStub(env, code), '/create', {
+          ...body,
+          code,
+          steamId: session.steamId,
+          steamName: session.steamName,
+          avatarUrl: session.avatarUrl,
+          rankScore,
+        })
         if (response.status !== 409) return response
       }
       return json({ error: '暂时无法生成房间号，请重试' }, 503)
@@ -422,10 +513,13 @@ export default {
       const body = await request.json().catch(() => null)
       const session = await readSteamSession(request, env)
       if (!session) return json({ error: '请先使用 Steam 登录' }, 401)
+      const rankScore = await lookupRankScore(session.steamId, session.steamName)
       return forwardJson(roomStub(env, code), '/join', {
         ...(body && typeof body === 'object' ? body : {}),
         steamId: session.steamId,
         steamName: session.steamName,
+        avatarUrl: session.avatarUrl,
+        rankScore,
       })
     }
 
@@ -495,6 +589,8 @@ export class DraftRoom extends DurableObject<Env> {
       const code = normalizeCode(String(body.code ?? ''))
       const name = normalizeText(body.steamName, 'Steam 昵称', 1, 64)
       const steamId = normalizeText(body.steamId, 'Steam ID', 17, 17)
+      const avatarUrl = normalizeText(body.avatarUrl, 'Steam 头像', 8, 500)
+      const rankScore = optionalRankScore(body.rankScore)
       const token = randomToken()
       const playerId = crypto.randomUUID()
       const now = Date.now()
@@ -503,9 +599,10 @@ export class DraftRoom extends DurableObject<Env> {
         status: 'waiting',
         capacity: MAX_PLAYERS,
         hostPlayerId: playerId,
-        players: [{ id: playerId, name, steamId, tokenHash: await hashToken(token), joinedAt: now }],
+        players: [{ id: playerId, name, steamId, avatarUrl, rankScore, tokenHash: await hashToken(token), joinedAt: now }],
         captainAId: null,
         captainBId: null,
+        captainsManual: false,
         teamAIds: [],
         teamBIds: [],
         draftOrder: [],
@@ -536,6 +633,8 @@ export class DraftRoom extends DurableObject<Env> {
       const body = await request.json() as Record<string, unknown>
       const name = normalizeText(body.steamName, 'Steam 昵称', 1, 64)
       const steamId = normalizeText(body.steamId, 'Steam ID', 17, 17)
+      const avatarUrl = normalizeText(body.avatarUrl, 'Steam 头像', 8, 500)
+      const rankScore = optionalRankScore(body.rankScore)
       const nameKey = name.toLocaleLowerCase()
       if (this.room.players.some((player) => player.steamId === steamId)) {
         throw new Error('这个 Steam 账号已经在房间中')
@@ -550,9 +649,12 @@ export class DraftRoom extends DurableObject<Env> {
         id: playerId,
         name,
         steamId,
+        avatarUrl,
+        rankScore,
         tokenHash: await hashToken(token),
         joinedAt: Date.now(),
       })
+      this.updateAutomaticCaptains()
       this.room.updatedAt = Date.now()
       await this.persist()
       this.broadcastState()
@@ -654,6 +756,7 @@ export class DraftRoom extends DurableObject<Env> {
         if (!this.hasPlayer(captainAId) || !this.hasPlayer(captainBId)) throw new Error('选择的队长不在房间中')
         room.captainAId = captainAId
         room.captainBId = captainBId
+        room.captainsManual = true
         room.teamAIds = [captainAId]
         room.teamBIds = [captainBId]
         break
@@ -668,6 +771,7 @@ export class DraftRoom extends DurableObject<Env> {
         }
         room.captainAId = shuffled[0].id
         room.captainBId = shuffled[1].id
+        room.captainsManual = true
         room.teamAIds = [shuffled[0].id]
         room.teamBIds = [shuffled[1].id]
         break
@@ -682,6 +786,7 @@ export class DraftRoom extends DurableObject<Env> {
         room.draftOrder = []
         room.pickIndex = 0
         room.firstPickSide = null
+        room.captainsManual = false
         room.rollA = crypto.getRandomValues(new Uint32Array(1))[0] % 101
         do {
           room.rollB = crypto.getRandomValues(new Uint32Array(1))[0] % 101
@@ -760,6 +865,7 @@ export class DraftRoom extends DurableObject<Env> {
         if (room.captainBId === targetId) room.captainBId = null
         room.teamAIds = room.captainAId ? [room.captainAId] : []
         room.teamBIds = room.captainBId ? [room.captainBId] : []
+        this.updateAutomaticCaptains()
         this.closePlayerSockets(targetId, 4401, 'removed by host')
         break
       }
@@ -769,6 +875,7 @@ export class DraftRoom extends DurableObject<Env> {
         room.status = 'waiting'
         room.captainAId = null
         room.captainBId = null
+        room.captainsManual = false
         room.teamAIds = []
         room.teamBIds = []
         room.draftOrder = []
@@ -781,6 +888,7 @@ export class DraftRoom extends DurableObject<Env> {
         room.rollB = null
         room.rollWinner = null
         room.firstPickSide = null
+        this.updateAutomaticCaptains()
         break
       }
       case 'close_room': {
@@ -805,6 +913,19 @@ export class DraftRoom extends DurableObject<Env> {
 
   private requireHost(actorId: string): void {
     if (!this.room || actorId !== this.room.hostPlayerId) throw new Error('只有房主可以执行此操作')
+  }
+
+  private updateAutomaticCaptains(): void {
+    if (!this.room || this.room.captainsManual || this.room.status !== 'waiting') return
+    const rankedPlayers = this.room.players
+      .filter((player) => typeof player.rankScore === 'number')
+      .sort((left, right) => (right.rankScore ?? -1) - (left.rankScore ?? -1) || left.joinedAt - right.joinedAt)
+    const captainA = rankedPlayers[0]
+    const captainB = rankedPlayers[1]
+    this.room.captainAId = captainA?.id ?? null
+    this.room.captainBId = captainB?.id ?? null
+    this.room.teamAIds = captainA ? [captainA.id] : []
+    this.room.teamBIds = captainB ? [captainB.id] : []
   }
 
   private requireWaiting(): void {
@@ -861,6 +982,9 @@ export class DraftRoom extends DurableObject<Env> {
       players: room.players.map((player) => ({
         id: player.id,
         name: player.name,
+        steamId: player.steamId ?? null,
+        avatarUrl: player.avatarUrl ?? null,
+        rankScore: player.rankScore ?? null,
         joinedAt: player.joinedAt,
         online: onlineIds.has(player.id),
         isHost: player.id === room.hostPlayerId,

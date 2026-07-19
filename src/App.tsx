@@ -83,9 +83,9 @@ function useSteamAuth(): SteamAuthState {
 
   const refresh = async () => {
     try {
-      const result = await apiJson<{ authenticated: boolean; steamId: string | null; steamName: string | null }>('/api/auth/steam/me')
-      setUser(result.authenticated && result.steamId && result.steamName
-        ? { steamId: result.steamId, steamName: result.steamName }
+      const result = await apiJson<{ authenticated: boolean; steamId: string | null; steamName: string | null; avatarUrl: string | null }>('/api/auth/steam/me')
+      setUser(result.authenticated && result.steamId && result.steamName && result.avatarUrl
+        ? { steamId: result.steamId, steamName: result.steamName, avatarUrl: result.avatarUrl }
         : null)
     } catch {
       setUser(null)
@@ -117,7 +117,7 @@ function SteamAccount({ steam, compact = false }: { steam: SteamAuthState; compa
   }
   return (
     <div className={`steam-account ${compact ? 'compact' : ''}`}>
-      <span className="steam-avatar-mark">S</span>
+      <img className="steam-avatar" src={steam.user.avatarUrl} alt="" />
       <span className="steam-account-name">{steam.user.steamName}</span>
       <button className="text-button" onClick={() => void steam.logout()} type="button">退出</button>
     </div>
@@ -559,6 +559,7 @@ function WaitingRoom({
 
       <aside className="panel control-panel">
         <h2>队长设置</h2>
+        <p className="hint">默认按积分最高的两名玩家自动担任 A/B 队长。</p>
         {!me.isHost && <p className="muted">等待房主操作</p>}
         {me.isHost && (
           <>
@@ -844,8 +845,8 @@ function TeamColumn({
           return (
             <div className="team-player" key={id}>
               <span className="player-index">{index + 1}</span>
-              <span className={`presence ${player.online ? 'online' : ''}`} />
-              <span><strong>{player.name}</strong></span>
+              <PlayerAvatar player={player} />
+              <span><strong>{player.name}</strong><small>{player.rankScore === null ? '未匹配积分' : `积分 ${player.rankScore.toLocaleString()}`}</small></span>
               {id === captainId && <b className="captain-tag">队长</b>}
             </div>
           )
@@ -858,9 +859,10 @@ function TeamColumn({
 function PlayerCard({ player, action }: { player: PublicPlayer; action: React.ReactNode }) {
   return (
     <div className="player-card">
-      <span className={`presence ${player.online ? 'online' : ''}`} />
+      <PlayerAvatar player={player} />
       <div>
         <strong>{player.name}</strong>
+        <small>{player.steamId ?? 'Steam ID 未匹配'} · {player.rankScore === null ? '积分未匹配' : `积分 ${player.rankScore.toLocaleString()}`}</small>
       </div>
       <div className="player-flags">
         {player.isHost && <span>房主</span>}
@@ -869,6 +871,14 @@ function PlayerCard({ player, action }: { player: PublicPlayer; action: React.Re
       </div>
       {action}
     </div>
+  )
+}
+
+function PlayerAvatar({ player }: { player: PublicPlayer }) {
+  return player.avatarUrl ? (
+    <img className={`player-avatar ${player.online ? 'online' : ''}`} src={player.avatarUrl} alt="" />
+  ) : (
+    <span className={`player-avatar player-avatar-fallback ${player.online ? 'online' : ''}`}>{player.name.slice(0, 1)}</span>
   )
 }
 

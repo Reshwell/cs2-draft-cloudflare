@@ -66,7 +66,11 @@ input:focus, select:focus { border-color: rgba(244,184,64,.8); box-shadow: 0 0 0
 .steam-account { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 7px 12px; border: 1px solid rgba(102,192,244,.2); border-radius: 12px; color: #dff3ff; background: rgba(25, 67, 96, .32); }
 .steam-account.compact { min-height: 34px; padding: 4px 9px; font-size: .82rem; }
 .steam-account-name { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; }
-.steam-avatar-mark { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; color: #fff; background: #1b75ae; font-weight: 950; }
+.steam-avatar, .player-avatar { display: block; object-fit: cover; border-radius: 9px; background: #1b75ae; }
+.steam-avatar { width: 30px; height: 30px; }
+.player-avatar { width: 36px; height: 36px; border: 2px solid #59616c; }
+.player-avatar.online { border-color: var(--green); box-shadow: 0 0 0 3px rgba(61,220,151,.1); }
+.player-avatar-fallback { display: grid; place-items: center; color: #fff; font-weight: 900; }
 .steam-account .text-button { color: #9fd5f5; font-size: .78rem; }
 .form-note { margin: 11px 0 0; color: var(--muted); font-size: .82rem; line-height: 1.45; }
 .compact { padding: 10px 14px; font-size: .82rem; }
