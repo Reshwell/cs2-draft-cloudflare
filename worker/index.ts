@@ -17,7 +17,7 @@ const MAP_POOL = [
   { id: 'cache', name: 'Cache' },
 ] as const
 const MAP_VETO_ORDER: TeamSide[] = ['A', 'B', 'B', 'A', 'A', 'B']
-const RANK_ENDPOINT = 'http://rank.noyy.de:27000/rank.php'
+const RANK_ENDPOINT = 'http://49.234.27.68:27000/rank.php'
 
 interface Env {
   ROOMS: DurableObjectNamespace<DraftRoom>
