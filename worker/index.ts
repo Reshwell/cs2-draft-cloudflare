@@ -28,6 +28,8 @@ interface Env {
   STEAM_API_KEY?: string
   RCON_HOST?: string
   RCON_PORT?: string
+  GAME_SERVER_HOST?: string
+  GAME_SERVER_PORT?: string
   RCON_PASSWORD?: string
   PUBLIC_ORIGIN?: string
 }
@@ -566,6 +568,13 @@ async function rconExecute(command: string, env: Env): Promise<string> {
 
 function matchMapName(mapId: string): string {
   return mapId === 'dust2' ? 'de_dust2' : `de_${mapId}`
+}
+
+function gameServerEndpoint(env: Env): { host: string; port: number } | null {
+  const host = (env.GAME_SERVER_HOST ?? env.RCON_HOST ?? '').trim()
+  const port = Number(env.GAME_SERVER_PORT ?? env.RCON_PORT ?? '')
+  if (!host || !Number.isInteger(port) || port < 1 || port > 65535) return null
+  return { host, port }
 }
 
 function matchConfigForRoom(room: StoredRoom) {
@@ -1300,6 +1309,7 @@ export class DraftRoom extends DurableObject<Env> {
   private publicState() {
     const room = this.room
     if (!room) return null
+    const gameServer = gameServerEndpoint(this.roomEnv)
     const onlineIds = new Set<string>()
     for (const socket of this.ctx.getWebSockets()) {
       const attachment = socket.deserializeAttachment() as WsAttachment | null
@@ -1309,6 +1319,8 @@ export class DraftRoom extends DurableObject<Env> {
     const availablePlayerIds = room.players.filter((player) => !selected.has(player.id)).map((player) => player.id)
     return {
       code: room.code,
+      gameServerHost: gameServer?.host ?? null,
+      gameServerPort: gameServer?.port ?? null,
       status: room.status,
       capacity: room.capacity,
       teamSize: Math.ceil(room.capacity / 2),

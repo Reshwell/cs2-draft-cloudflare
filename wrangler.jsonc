@@ -6,6 +6,8 @@
   "vars": {
     "RCON_HOST": "cd.csgo2.icu",
     "RCON_PORT": "27000",
+    "GAME_SERVER_HOST": "cd.csgo2.icu",
+    "GAME_SERVER_PORT": "27000",
     "PUBLIC_ORIGIN": "https://pick.noyy.de"
   },
   "assets": {

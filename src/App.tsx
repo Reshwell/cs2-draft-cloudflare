@@ -886,17 +886,39 @@ function MatchStarted({
   copyResult: () => void
 }) {
   const selectedMap = state.maps.find((map) => map.id === state.selectedMapId)
+  const connectUrl = gameConnectUrl(state)
+  const serverAddress = state.gameServerHost && state.gameServerPort
+    ? `${state.gameServerHost}:${state.gameServerPort}`
+    : '服务器地址未配置'
   return (
     <section className="panel map-result-panel">
       <h2>比赛已开始</h2>
       <div className="map-result-name">{selectedMap?.name ?? '地图已加载'}</div>
       <p className="muted">玩家可以自由加入 CT、T 或观战。</p>
+      <div className="match-connect-card">
+        <div>
+          <span>服务器地址</span>
+          <strong>{serverAddress}</strong>
+        </div>
+        {connectUrl ? (
+          <a className="primary-button" href={connectUrl}>进入游戏</a>
+        ) : (
+          <span className="muted">无法获取服务器地址</span>
+        )}
+      </div>
       <div className="draft-footer">
         <button className="secondary-button compact" onClick={copyResult}>复制对局信息</button>
         {me.isHost && <button className="secondary-button compact" onClick={() => send({ type: 'reset_room' })}>重置房间</button>}
       </div>
     </section>
   )
+}
+
+function gameConnectUrl(state: PublicRoomState): string | null {
+  const host = state.gameServerHost?.trim()
+  const port = state.gameServerPort
+  if (!host || !port) return null
+  return `steam://connect/${host}:${port}`
 }
 
 function TeamColumn({

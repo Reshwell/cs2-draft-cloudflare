@@ -208,6 +208,11 @@ input:focus, select:focus { border-color: var(--orange); box-shadow: 0 0 0 3px r
 .map-result-name { color: var(--orange); font-size: clamp(2.4rem, 8vw, 5rem); font-weight: 950; letter-spacing: -.07em; }
 .map-ban-summary { display: flex; justify-content: center; flex-wrap: wrap; gap: 7px; margin-top: 18px; }
 .map-ban-summary span { color: var(--muted); background: var(--surface-2); border: 1px solid var(--line); padding: 7px 10px; font-size: .72rem; }
+.match-connect-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: min(520px, 100%); margin: 26px auto 0; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); text-align: left; }
+.match-connect-card div { display: grid; gap: 5px; min-width: 0; }
+.match-connect-card span { color: var(--muted); font-size: .7rem; }
+.match-connect-card strong { overflow: hidden; color: #fff; font-size: .86rem; text-overflow: ellipsis; white-space: nowrap; }
+.match-connect-card .primary-button { flex: 0 0 auto; text-decoration: none; }
 .closed-panel { text-align: center; max-width: 520px; margin: 80px auto; }
 
 @media (max-width: 900px) {
@@ -242,4 +247,6 @@ input:focus, select:focus { border-color: var(--orange); box-shadow: 0 0 0 3px r
   .join-panel h1 { font-size: 3rem; }
   .draft-footer { justify-content: stretch; }
   .draft-footer > button { flex: 1; }
+  .match-connect-card { align-items: stretch; flex-direction: column; }
+  .match-connect-card .primary-button { justify-content: center; }
 }
