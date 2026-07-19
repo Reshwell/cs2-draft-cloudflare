@@ -413,6 +413,56 @@ async function rconExecute(command: string, env: Env): Promise<string> {
   }
 }
 
+async function waitMs(milliseconds: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, milliseconds))
+}
+
+async function rconExecuteWithRetry(
+  command: string,
+  env: Env,
+  step: string,
+  report: (message: string) => void,
+  attempts = 3,
+): Promise<string> {
+  let lastError: unknown = null
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    report(attempt === 1 ? `${step}…` : `${step}（重试 ${attempt}/${attempts}）`)
+    try {
+      return await rconExecute(command, env)
+    } catch (error) {
+      lastError = error
+      if (attempt < attempts) await waitMs(attempt * 1_000)
+    }
+  }
+  throw new Error(`${step}失败：${errorMessage(lastError)}`)
+}
+
+function currentMapFromStatus(status: string): string | null {
+  return status.match(/\bMap\s+"([^"]+)"/i)?.[1]?.toLowerCase() ?? null
+}
+
+async function waitForMapLoaded(targetMap: string, env: Env, report: (message: string) => void): Promise<void> {
+  const deadline = Date.now() + 45_000
+  let pollCount = 0
+  report(`等待地图 ${targetMap} 加载…`)
+  while (Date.now() < deadline) {
+    pollCount += 1
+    try {
+      const status = await rconExecute('status', env)
+      const currentMap = currentMapFromStatus(status)
+      if (currentMap === targetMap.toLowerCase()) {
+        report(`地图 ${targetMap} 已加载`)
+        return
+      }
+      if (pollCount === 1 || pollCount % 5 === 0) report(`地图仍在加载… 当前：${currentMap ?? '准备中'}`)
+    } catch {
+      if (pollCount === 1 || pollCount % 5 === 0) report('服务器正在切图，等待 RCON 恢复…')
+    }
+    await waitMs(1_000)
+  }
+  throw new Error(`地图 ${targetMap} 加载超时（45 秒）`)
+}
+
 function matchMapName(mapId: string): string {
   return mapId === 'dust2' ? 'de_dust2' : `de_${mapId}`
 }
@@ -444,13 +494,13 @@ function matchConfigForRoom(room: StoredRoom) {
   }
 }
 
-async function startLooseMatch(room: StoredRoom, env: Env): Promise<void> {
+async function startLooseMatch(room: StoredRoom, env: Env, report: (message: string) => void): Promise<void> {
   const map = matchMapName(room.selectedMapId ?? '')
-  await rconExecute('css_endmatch', env)
-  await rconExecute(`map "${map}"`, env)
-  await new Promise((resolve) => setTimeout(resolve, 5_000))
-  await rconExecute('css_start', env)
-  await rconExecute('mp_autoteambalance 0; mp_limitteams 0; mp_spectators_max 20; mp_teamname_1 "A"; mp_teamname_2 "B"', env)
+  await rconExecuteWithRetry('css_endmatch', env, '结束当前热身/比赛', report)
+  await rconExecuteWithRetry(`map "${map}"`, env, `切换地图 ${map}`, report)
+  await waitForMapLoaded(map, env, report)
+  await rconExecuteWithRetry('css_start', env, '启动 MatchZy 娱乐模式', report)
+  await rconExecuteWithRetry('mp_autoteambalance 0; mp_limitteams 0; mp_spectators_max 20; mp_teamname_1 "A"; mp_teamname_2 "B"', env, '设置自由换队和观战参数', report)
 }
 
 function matchLoadCommand(room: StoredRoom, env: Env): string {
@@ -1046,7 +1096,7 @@ export class DraftRoom extends DurableObject<Env> {
         room.matchStartedAt = null
         await this.persist()
         try {
-          await startLooseMatch(room, this.roomEnv)
+          await startLooseMatch(room, this.roomEnv, (message) => this.broadcastNotice(message))
           room.status = 'match_started'
           room.matchStartedAt = Date.now()
           noticeMessage = '自由娱乐模式已启动，玩家可以自由换队或观战'
