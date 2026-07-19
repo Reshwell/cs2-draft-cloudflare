@@ -846,7 +846,7 @@ function TeamColumn({
             <div className="team-player" key={id}>
               <span className="player-index">{index + 1}</span>
               <PlayerAvatar player={player} />
-              <span><strong>{player.name}</strong><small>{player.rankScore === null ? '未匹配积分' : `积分 ${player.rankScore.toLocaleString()}`}</small></span>
+              <span><strong>{player.name}</strong><small>{player.rankTier ?? '未匹配段位'} · {player.rankScore === null ? '未匹配积分' : `积分 ${player.rankScore.toLocaleString()}`}</small></span>
               {id === captainId && <b className="captain-tag">队长</b>}
             </div>
           )
@@ -862,7 +862,7 @@ function PlayerCard({ player, action }: { player: PublicPlayer; action: React.Re
       <PlayerAvatar player={player} />
       <div>
         <strong>{player.name}</strong>
-        <small>{player.steamId ?? 'Steam ID 未匹配'} · {player.rankScore === null ? '积分未匹配' : `积分 ${player.rankScore.toLocaleString()}`}</small>
+        <small>{player.steamId ?? 'Steam ID 未匹配'} · {player.rankTier ?? '段位未匹配'} · {player.rankScore === null ? '积分未匹配' : `积分 ${player.rankScore.toLocaleString()}`}</small>
       </div>
       <div className="player-flags">
         {player.isHost && <span>房主</span>}

@@ -12,6 +12,7 @@ export interface PublicPlayer {
   steamId: string | null
   avatarUrl: string | null
   rankScore: number | null
+  rankTier: string | null
   joinedAt: number
   online: boolean
   isHost: boolean

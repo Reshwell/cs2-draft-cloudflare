@@ -31,6 +31,8 @@ interface StoredPlayer {
   steamId?: string
   avatarUrl?: string
   rankScore?: number | null
+  rankTier?: string | null
+  rankCheckedAt?: number
   tokenHash: string
   joinedAt: number
 }
@@ -94,6 +96,12 @@ const STEAM_SESSION_COOKIE = 'cs2_steam_session'
 const STEAM_LOGIN_STATE_COOKIE = 'cs2_steam_login_state'
 const STEAM_SESSION_MAX_AGE = 7 * 24 * 60 * 60
 const STEAM_LOGIN_STATE_MAX_AGE = 10 * 60
+const RANK_REQUEST_INIT: RequestInit = {
+  headers: {
+    accept: 'text/html,application/xhtml+xml',
+    'user-agent': 'Mozilla/5.0 (compatible; CS2-Draft-Room/1.0)',
+  },
+}
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: JSON_HEADERS })
@@ -298,14 +306,15 @@ async function fetchSteamProfile(steamId: string, env: Env): Promise<{ steamName
 interface RankEntry {
   steamId: string
   score: number
+  tier: string | null
 }
 
 function parseRankEntries(html: string): RankEntry[] {
   const entries: RankEntry[] = []
-  const pattern = /<div class="cell cell1"[^>]*data-steamid="(\d{17})"[\s\S]*?<div class="cell" data-title="分数">\s*([\d,]+)\s*<\/div>/g
+  const pattern = /<div class="cell cell1"[^>]*data-steamid="(\d{17})"[\s\S]*?<div class="cell" data-title="段位"[^>]*>\s*([^<]*?)\s*<\/div>\s*<div class="cell" data-title="分数">\s*([\d,]+)\s*<\/div>/g
   for (const match of html.matchAll(pattern)) {
-    const score = Number.parseInt(match[2].replaceAll(',', ''), 10)
-    if (Number.isFinite(score)) entries.push({ steamId: match[1], score })
+    const score = Number.parseInt(match[3].replaceAll(',', ''), 10)
+    if (Number.isFinite(score)) entries.push({ steamId: match[1], score, tier: match[2].trim() || null })
   }
   return entries
 }
@@ -317,40 +326,40 @@ function maxRankPage(html: string): number {
   return Math.min(maxPage, 25)
 }
 
-async function fetchRankScore(steamId: string, steamName: string): Promise<number | null> {
+async function fetchRankEntry(steamId: string, steamName: string): Promise<RankEntry | null> {
   const searchUrl = new URL(RANK_ENDPOINT)
   searchUrl.searchParams.set('search', steamName)
   searchUrl.searchParams.set('server', 'Server')
-  const searchResponse = await fetch(searchUrl)
+  const searchResponse = await fetch(searchUrl, RANK_REQUEST_INIT)
   if (searchResponse.ok) {
     const searchEntries = parseRankEntries(await searchResponse.text())
     const match = searchEntries.find((entry) => entry.steamId === steamId)
-    if (match) return match.score
+    if (match) return match
   }
 
   const firstUrl = new URL(RANK_ENDPOINT)
   firstUrl.searchParams.set('server', 'Server')
-  const firstResponse = await fetch(firstUrl)
+  const firstResponse = await fetch(firstUrl, RANK_REQUEST_INIT)
   if (!firstResponse.ok) return null
   const firstHtml = await firstResponse.text()
   const firstEntries = parseRankEntries(firstHtml)
   const firstMatch = firstEntries.find((entry) => entry.steamId === steamId)
-  if (firstMatch) return firstMatch.score
+  if (firstMatch) return firstMatch
 
   const pages = Array.from({ length: Math.max(0, maxRankPage(firstHtml) - 1) }, (_, index) => index + 2)
   const pageEntries = await Promise.all(pages.map(async (page) => {
     const pageUrl = new URL(RANK_ENDPOINT)
     pageUrl.searchParams.set('server', 'Server')
     pageUrl.searchParams.set('page', String(page))
-    const response = await fetch(pageUrl)
+    const response = await fetch(pageUrl, RANK_REQUEST_INIT)
     return response.ok ? parseRankEntries(await response.text()) : []
   }))
-  return pageEntries.flat().find((entry) => entry.steamId === steamId)?.score ?? null
+  return pageEntries.flat().find((entry) => entry.steamId === steamId) ?? null
 }
 
-async function lookupRankScore(steamId: string, steamName: string): Promise<number | null> {
+async function lookupRankEntry(steamId: string, steamName: string): Promise<RankEntry | null> {
   try {
-    return await fetchRankScore(steamId, steamName)
+    return await fetchRankEntry(steamId, steamName)
   } catch {
     return null
   }
@@ -425,6 +434,12 @@ function optionalRankScore(value: unknown): number | null {
   return Math.max(0, Math.floor(value))
 }
 
+function optionalRankTier(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const tier = value.trim()
+  return tier.length > 0 && tier.length <= 24 ? tier : null
+}
+
 function roomStub(env: Env, code: string): DurableObjectStub<DraftRoom> {
   return env.ROOMS.getByName(code)
 }
@@ -490,7 +505,7 @@ export default {
       if (!body) return json({ error: '请求内容不是有效 JSON' }, 400)
       const session = await readSteamSession(request, env)
       if (!session) return json({ error: '请先使用 Steam 登录' }, 401)
-      const rankScore = await lookupRankScore(session.steamId, session.steamName)
+      const rankEntry = await lookupRankEntry(session.steamId, session.steamName)
 
       for (let attempt = 0; attempt < 6; attempt += 1) {
         const code = randomRoomCode()
@@ -500,7 +515,8 @@ export default {
           steamId: session.steamId,
           steamName: session.steamName,
           avatarUrl: session.avatarUrl,
-          rankScore,
+          rankScore: rankEntry?.score ?? null,
+          rankTier: rankEntry?.tier ?? null,
         })
         if (response.status !== 409) return response
       }
@@ -513,13 +529,14 @@ export default {
       const body = await request.json().catch(() => null)
       const session = await readSteamSession(request, env)
       if (!session) return json({ error: '请先使用 Steam 登录' }, 401)
-      const rankScore = await lookupRankScore(session.steamId, session.steamName)
+      const rankEntry = await lookupRankEntry(session.steamId, session.steamName)
       return forwardJson(roomStub(env, code), '/join', {
         ...(body && typeof body === 'object' ? body : {}),
         steamId: session.steamId,
         steamName: session.steamName,
         avatarUrl: session.avatarUrl,
-        rankScore,
+        rankScore: rankEntry?.score ?? null,
+        rankTier: rankEntry?.tier ?? null,
       })
     }
 
@@ -542,6 +559,7 @@ export default {
 export class DraftRoom extends DurableObject<Env> {
   private room: StoredRoom | null = null
   private actionChain: Promise<void> = Promise.resolve()
+  private profileRefresh: Promise<void> | null = null
   private readonly roomEnv: Env
 
   constructor(ctx: DurableObjectState, env: Env) {
@@ -559,6 +577,7 @@ export class DraftRoom extends DurableObject<Env> {
     if (url.pathname === '/join' && request.method === 'POST') return this.joinRoom(request)
     if (url.pathname === '/state' && request.method === 'GET') {
       if (!this.room) return json({ error: '房间不存在' }, 404)
+      await this.refreshMissingPlayerData()
       return json({ state: this.publicState() })
     }
     if (url.pathname.endsWith('/ws') && request.method === 'GET') return this.openSocket(request)
@@ -591,6 +610,7 @@ export class DraftRoom extends DurableObject<Env> {
       const steamId = normalizeText(body.steamId, 'Steam ID', 17, 17)
       const avatarUrl = normalizeText(body.avatarUrl, 'Steam 头像', 8, 500)
       const rankScore = optionalRankScore(body.rankScore)
+      const rankTier = optionalRankTier(body.rankTier)
       const token = randomToken()
       const playerId = crypto.randomUUID()
       const now = Date.now()
@@ -599,7 +619,7 @@ export class DraftRoom extends DurableObject<Env> {
         status: 'waiting',
         capacity: MAX_PLAYERS,
         hostPlayerId: playerId,
-        players: [{ id: playerId, name, steamId, avatarUrl, rankScore, tokenHash: await hashToken(token), joinedAt: now }],
+        players: [{ id: playerId, name, steamId, avatarUrl, rankScore, rankTier, rankCheckedAt: now, tokenHash: await hashToken(token), joinedAt: now }],
         captainAId: null,
         captainBId: null,
         captainsManual: false,
@@ -635,6 +655,7 @@ export class DraftRoom extends DurableObject<Env> {
       const steamId = normalizeText(body.steamId, 'Steam ID', 17, 17)
       const avatarUrl = normalizeText(body.avatarUrl, 'Steam 头像', 8, 500)
       const rankScore = optionalRankScore(body.rankScore)
+      const rankTier = optionalRankTier(body.rankTier)
       const nameKey = name.toLocaleLowerCase()
       if (this.room.players.some((player) => player.steamId === steamId)) {
         throw new Error('这个 Steam 账号已经在房间中')
@@ -651,6 +672,8 @@ export class DraftRoom extends DurableObject<Env> {
         steamId,
         avatarUrl,
         rankScore,
+        rankTier,
+        rankCheckedAt: Date.now(),
         tokenHash: await hashToken(token),
         joinedAt: Date.now(),
       })
@@ -669,6 +692,7 @@ export class DraftRoom extends DurableObject<Env> {
       return json({ error: '需要 WebSocket Upgrade' }, 426)
     }
     if (!this.room) return this.closedSocketResponse(4404, 'room not found')
+    await this.refreshMissingPlayerData()
 
     const token = new URL(request.url).searchParams.get('token') ?? ''
     const tokenHash = await hashToken(token)
@@ -915,6 +939,35 @@ export class DraftRoom extends DurableObject<Env> {
     if (!this.room || actorId !== this.room.hostPlayerId) throw new Error('只有房主可以执行此操作')
   }
 
+  private async refreshMissingPlayerData(): Promise<void> {
+    if (!this.room || this.room.status !== 'waiting') return
+    if (this.profileRefresh) return this.profileRefresh
+
+    const refresh = async () => {
+      const now = Date.now()
+      const playersToRefresh = this.room?.players.filter((player) => {
+        if (!player.steamId) return false
+        return !player.avatarUrl || !player.rankCheckedAt || now - player.rankCheckedAt >= 60_000
+      }) ?? []
+      if (playersToRefresh.length === 0) return
+
+      for (const player of playersToRefresh) {
+        if (!player.avatarUrl) {
+          try { player.avatarUrl = (await fetchSteamProfile(player.steamId!, this.roomEnv)).avatarUrl } catch { /* Keep the current profile data. */ }
+        }
+        const rankEntry = await lookupRankEntry(player.steamId!, player.name)
+        player.rankScore = rankEntry?.score ?? null
+        player.rankTier = rankEntry?.tier ?? null
+        player.rankCheckedAt = now
+      }
+      this.updateAutomaticCaptains()
+      await this.persist()
+    }
+
+    this.profileRefresh = refresh().finally(() => { this.profileRefresh = null })
+    await this.profileRefresh
+  }
+
   private updateAutomaticCaptains(): void {
     if (!this.room || this.room.captainsManual || this.room.status !== 'waiting') return
     const rankedPlayers = this.room.players
@@ -985,6 +1038,7 @@ export class DraftRoom extends DurableObject<Env> {
         steamId: player.steamId ?? null,
         avatarUrl: player.avatarUrl ?? null,
         rankScore: player.rankScore ?? null,
+        rankTier: player.rankTier ?? null,
         joinedAt: player.joinedAt,
         online: onlineIds.has(player.id),
         isHost: player.id === room.hostPlayerId,
