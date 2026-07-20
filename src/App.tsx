@@ -146,6 +146,16 @@ function Topbar({ steam, roomCode }: { steam: SteamAuthState; roomCode?: string 
   )
 }
 
+function SourceCodeLink() {
+  return (
+    <footer className="source-footer">
+      <a href="https://github.com/Reshwell/cs2-draft-cloudflare" target="_blank" rel="noreferrer">
+        开源代码
+      </a>
+    </footer>
+  )
+}
+
 function HomePage({ steam }: { steam: SteamAuthState }) {
   const [joinCode, setJoinCode] = useState('')
   const [activeRooms, setActiveRooms] = useState<Array<{ code: string; playerCount: number; maxPlayers: number }>>([])
@@ -280,6 +290,7 @@ function HomePage({ steam }: { steam: SteamAuthState }) {
       </section>
       {error && <div className="toast error-toast">{error}</div>}
       </div>
+      <SourceCodeLink />
     </main>
   )
 }
@@ -379,6 +390,7 @@ function RoomPage({ roomCode, steam }: { roomCode: string; steam: SteamAuthState
           <p>{connection === 'offline' ? '连接中断，正在自动重连…' : '正在建立 WebSocket 连接…'}</p>
           {error && <div className="inline-error">{error}</div>}
         </div>
+        <SourceCodeLink />
       </main>
     )
   }
@@ -440,6 +452,7 @@ function JoinRoom({
         )}
         {error && <div className="inline-error">{error}</div>}
       </form>
+      <SourceCodeLink />
     </main>
   )
 }
@@ -549,6 +562,7 @@ function RoomDashboard({
         </section>
       )}
       </div>
+      <SourceCodeLink />
     </main>
   )
 }
