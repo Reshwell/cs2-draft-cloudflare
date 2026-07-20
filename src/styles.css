@@ -711,3 +711,159 @@ input:focus, select:focus {
   .action-card .panel-heading { margin-bottom: 24px; }
   .active-rooms-panel { margin-top: 24px; }
 }
+
+/* Utility header: no card chrome, only external links and account controls. */
+.topbar {
+  width: min(1200px, calc(100% - 48px));
+  height: 56px;
+  margin: 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.topbar-tools { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.icon-button, .counterstrike-link, .user-avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  color: #171717;
+  background: transparent;
+  text-decoration: none;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.icon-button:hover, .counterstrike-link:hover { border-color: #eaeaea; background: #f2f2f2; }
+.icon-button:focus-visible, .counterstrike-link:focus-visible, .user-avatar:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #006bff;
+}
+.counterstrike-link { width: 40px; height: 40px; overflow: hidden; border-radius: 6px; border-color: #eaeaea; background: #f2f2f2; }
+.counterstrike-link img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.counterstrike-fallback { color: #171717; font-family: "Geist Mono", monospace; font-size: 12px; font-weight: 600; }
+.topbar-account { display: flex; align-items: center; }
+.user-avatar { color: #666666; border-color: #eaeaea; background: #f2f2f2; cursor: pointer; }
+.user-avatar.default-avatar { border-radius: 9999px; }
+.user-avatar:hover { color: #171717; border-color: #bdbdbd; background: #eaeaea; }
+.steam-account { border: 0; padding: 0; background: transparent; }
+.steam-account .steam-avatar { width: 36px; height: 36px; border: 1px solid #eaeaea; }
+.steam-account .text-button { margin-left: 4px; }
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #000000;
+  --surface: #000000;
+  --surface-2: #1a1a1a;
+  --surface-3: #1f1f1f;
+  --line: #2e2e2e;
+  --line-soft: rgba(255, 255, 255, .14);
+  --muted: #a0a0a0;
+  --muted-2: #878787;
+  --orange: #ededed;
+  --orange-light: #006efe;
+  --blue: #006efe;
+  --red: #e2162a;
+  --green: #009432;
+}
+:root[data-theme="dark"] body,
+:root[data-theme="dark"] .app-shell { color: #ededed; background: #000000; }
+:root[data-theme="dark"] .hero h1,
+:root[data-theme="dark"] .room-header h1,
+:root[data-theme="dark"] .join-panel h1,
+:root[data-theme="dark"] .panel-heading h2,
+:root[data-theme="dark"] .section-title-row h2,
+:root[data-theme="dark"] .control-panel h2,
+:root[data-theme="dark"] .team-heading h2,
+:root[data-theme="dark"] .active-room-card,
+:root[data-theme="dark"] .room-summary strong,
+:root[data-theme="dark"] .player-card strong,
+:root[data-theme="dark"] .team-player strong,
+:root[data-theme="dark"] .pick-player-card strong,
+:root[data-theme="dark"] .map-card strong,
+:root[data-theme="dark"] .starting-side-result strong,
+:root[data-theme="dark"] .match-connect-card strong { color: #ededed; }
+:root[data-theme="dark"] .hero p,
+:root[data-theme="dark"] .room-header p,
+:root[data-theme="dark"] .join-panel > p,
+:root[data-theme="dark"] .panel-heading p,
+:root[data-theme="dark"] .section-title-row p,
+:root[data-theme="dark"] .team-heading p,
+:root[data-theme="dark"] .room-summary span,
+:root[data-theme="dark"] .player-card small,
+:root[data-theme="dark"] .team-player small,
+:root[data-theme="dark"] .pick-player-card small,
+:root[data-theme="dark"] .map-card span,
+:root[data-theme="dark"] .starting-side-result,
+:root[data-theme="dark"] .match-connect-card span,
+:root[data-theme="dark"] .form-note,
+:root[data-theme="dark"] .hint,
+:root[data-theme="dark"] .empty-state { color: #a0a0a0; }
+:root[data-theme="dark"] .topnav-item,
+:root[data-theme="dark"] .text-button,
+:root[data-theme="dark"] .counterstrike-fallback,
+:root[data-theme="dark"] .icon-button,
+:root[data-theme="dark"] .counterstrike-link,
+:root[data-theme="dark"] .user-avatar { color: #a0a0a0; }
+:root[data-theme="dark"] .panel,
+:root[data-theme="dark"] .room-summary > div,
+:root[data-theme="dark"] .phase-item,
+:root[data-theme="dark"] .player-card,
+:root[data-theme="dark"] .team-column,
+:root[data-theme="dark"] .pick-player-card,
+:root[data-theme="dark"] .map-card,
+:root[data-theme="dark"] .match-connect-card,
+:root[data-theme="dark"] .join-profile,
+:root[data-theme="dark"] .roll-card { background: #000000; border-color: #2e2e2e; }
+:root[data-theme="dark"] .action-card-mark,
+:root[data-theme="dark"] .join-mark,
+:root[data-theme="dark"] .active-room-card,
+:root[data-theme="dark"] .capacity-badge,
+:root[data-theme="dark"] .pick-counter,
+:root[data-theme="dark"] .connection-pill,
+:root[data-theme="dark"] .room-code-badge,
+:root[data-theme="dark"] .map-ban-summary span { background: #1a1a1a; border-color: #2e2e2e; }
+:root[data-theme="dark"] .create-card .action-card-mark { color: #000000; background: #ededed; border-color: #ededed; }
+:root[data-theme="dark"] .topnav-item:hover,
+:root[data-theme="dark"] .topnav-item.active,
+:root[data-theme="dark"] .icon-button:hover,
+:root[data-theme="dark"] .counterstrike-link:hover,
+:root[data-theme="dark"] .user-avatar:hover,
+:root[data-theme="dark"] .active-room-card:hover,
+:root[data-theme="dark"] .pick-player-card.selectable:hover,
+:root[data-theme="dark"] .map-card.selectable:hover { color: #ededed; background: #1f1f1f; border-color: #454545; }
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select { color: #ededed; background: #000000; border-color: #2e2e2e; }
+:root[data-theme="dark"] input:focus,
+:root[data-theme="dark"] select:focus,
+:root[data-theme="dark"] .icon-button:focus-visible,
+:root[data-theme="dark"] .counterstrike-link:focus-visible,
+:root[data-theme="dark"] .user-avatar:focus-visible,
+:root[data-theme="dark"] .primary-button:focus-visible,
+:root[data-theme="dark"] .secondary-button:focus-visible,
+:root[data-theme="dark"] .danger-button:focus-visible,
+:root[data-theme="dark"] .steam-login-button:focus-visible { box-shadow: 0 0 0 2px #000000, 0 0 0 4px #006efe; }
+:root[data-theme="dark"] .primary-button { color: #000000; background: #ededed; }
+:root[data-theme="dark"] .primary-button:hover:not(:disabled) { background: #ffffff; }
+:root[data-theme="dark"] .secondary-button { color: #ededed; background: #000000; border-color: #ffffff24; }
+:root[data-theme="dark"] .secondary-button:hover:not(:disabled) { background: #1a1a1a; border-color: #ffffff3d; }
+:root[data-theme="dark"] .steam-login-button { color: #000000; background: #ededed; border-color: #ededed; }
+:root[data-theme="dark"] .steam-login-button:hover:not(:disabled) { background: #ffffff; }
+:root[data-theme="dark"] .team-a .team-heading > span,
+:root[data-theme="dark"] .team-b .team-heading > span,
+:root[data-theme="dark"] .team-letter-a,
+:root[data-theme="dark"] .team-letter-b,
+:root[data-theme="dark"] .player-flags span,
+:root[data-theme="dark"] .captain-tag { background: #1a1a1a; }
+:root[data-theme="dark"] .turn-banner { color: #ededed; background: #06193a; border-color: #003674; }
+:root[data-theme="dark"] .turn-banner span { color: #a0a0a0; }
+:root[data-theme="dark"] .turn-banner.finished { background: #002608; border-color: #004615; }
+:root[data-theme="dark"] .roll-card.winner { background: #06193a; border-color: #006efe; }
+:root[data-theme="dark"] .map-card.banned { background: #1a1a1a; }
+:root[data-theme="dark"] .map-result-panel .final-teams-grid .team-column { background: #1a1a1a; }
+:root[data-theme="dark"] .error-toast,
+:root[data-theme="dark"] .inline-error { color: #ff565f; background: #330a11; border-color: #6f101b; }
+:root[data-theme="dark"] .notice-toast { color: #00ca50; background: #002608; border-color: #004615; }

@@ -110,7 +110,7 @@ function steamLogin(next = window.location.pathname) {
   window.location.assign(`/api/auth/steam/login?next=${encodeURIComponent(next || '/')}`)
 }
 
-type IconName = 'brand' | 'create' | 'join' | 'arrow'
+type IconName = 'create' | 'join' | 'arrow' | 'x' | 'github' | 'sun' | 'moon' | 'user'
 
 function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
   const common = {
@@ -125,22 +125,34 @@ function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
     'aria-hidden': true,
   }
 
-  if (name === 'brand') {
-    return <svg {...common}><path d="M5 7h5v5H5zM14 7h5v5h-5zM5 16h5v5H5zM14 16h5v5h-5z" /><path d="M10 9.5h4M10 18.5h4" /></svg>
-  }
   if (name === 'create') {
     return <svg {...common}><path d="M12 5v14M5 12h14" /></svg>
   }
   if (name === 'join') {
     return <svg {...common}><path d="M13 5h6v14h-6M3 12h11M10 8l4 4-4 4" /></svg>
   }
-  return <svg {...common}><path d="M5 12h13M13 6l6 6-6 6" /></svg>
+  if (name === 'arrow') {
+    return <svg {...common}><path d="M5 12h13M13 6l6 6-6 6" /></svg>
+  }
+  if (name === 'x') {
+    return <svg {...common}><path d="M5 4 19 20M19 4 5 20" /></svg>
+  }
+  if (name === 'github') {
+    return <svg {...common} fill="currentColor" stroke="none"><path d="M12 .7a11.3 11.3 0 0 0-3.57 22.02c.56.1.77-.24.77-.54v-2.1c-3.14.68-3.8-1.34-3.8-1.34-.51-1.3-1.25-1.65-1.25-1.65-1.03-.7.08-.69.08-.69 1.14.08 1.74 1.17 1.74 1.17 1.01 1.73 2.65 1.23 3.3.94.1-.73.4-1.23.72-1.51-2.51-.29-5.15-1.26-5.15-5.6 0-1.24.44-2.25 1.17-3.05-.12-.29-.51-1.45.11-3.02 0 0 .95-.3 3.11 1.16A10.8 10.8 0 0 1 12 6.1c.96 0 1.92.13 2.82.39 2.15-1.46 3.1-1.16 3.1-1.16.63 1.57.24 2.73.12 3.02.73.8 1.17 1.81 1.17 3.05 0 4.35-2.65 5.3-5.17 5.59.41.35.77 1.04.77 2.1v3.11c0 .3.2.65.78.54A11.3 11.3 0 0 0 12 .7Z" /></svg>
+  }
+  if (name === 'sun') {
+    return <svg {...common}><circle cx="12" cy="12" r="3.5" /><path d="M12 2.5v2M12 19.5v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2.5 12h2M19.5 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
+  }
+  if (name === 'moon') {
+    return <svg {...common}><path d="M19.5 15.2A7.7 7.7 0 0 1 8.8 4.5 7.7 7.7 0 1 0 19.5 15.2Z" /></svg>
+  }
+  return <svg {...common}><circle cx="12" cy="8" r="3.2" /><path d="M5.5 20a6.5 6.5 0 0 1 13 0" /></svg>
 }
 
 function SteamAccount({ steam, compact = false }: { steam: SteamAuthState; compact?: boolean }) {
-  if (steam.loading) return <span className="steam-account muted">检查 Steam 登录…</span>
+  if (steam.loading) return <span className="user-avatar default-avatar" aria-label="正在检查登录状态"><Icon name="user" size={17} /></span>
   if (!steam.user) {
-    return <button className={`steam-login-button ${compact ? 'compact' : ''}`} onClick={() => steamLogin()} type="button">使用 Steam 登录</button>
+    return <button className="user-avatar default-avatar" onClick={() => steamLogin()} type="button" aria-label="使用 Steam 登录" title="使用 Steam 登录"><Icon name="user" size={17} /></button>
   }
   return (
     <div className={`steam-account ${compact ? 'compact' : ''}`}>
@@ -151,38 +163,49 @@ function SteamAccount({ steam, compact = false }: { steam: SteamAuthState; compa
   )
 }
 
-function BrandMark() {
+function ThemeToggle() {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const saved = window.localStorage.getItem('cs2-draft-theme')
+    if (saved === 'light' || saved === 'dark') return saved
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  })
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    window.localStorage.setItem('cs2-draft-theme', theme)
+  }, [theme])
+
+  const nextTheme = theme === 'light' ? 'dark' : 'light'
   return (
-    <button className="brand-mark" onClick={() => navigate('/')} type="button" aria-label="返回首页">
-      <span className="brand-mark-icon"><Icon name="brand" size={17} /></span>
-      <span>选人房</span>
+    <button className="icon-button" type="button" onClick={() => setTheme(nextTheme)} aria-label={`切换到${nextTheme === 'dark' ? '深色' : '浅色'}模式`} title={`切换到${nextTheme === 'dark' ? '深色' : '浅色'}模式`}>
+      <Icon name={theme === 'light' ? 'moon' : 'sun'} size={17} />
     </button>
   )
 }
 
-function Topbar({ steam, roomCode }: { steam: SteamAuthState; roomCode?: string }) {
+function CounterStrikeLink() {
+  const [imageFailed, setImageFailed] = useState(false)
   return (
-    <header className="topbar">
-      <BrandMark />
-      <nav className="topnav" aria-label="主导航">
-        <button className="topnav-item active" onClick={() => navigate('/')} type="button">大厅</button>
-        {roomCode && <span className="topnav-room">房间 / {roomCode}</span>}
-      </nav>
-      <div className="topbar-account"><SteamAccount steam={steam} compact /></div>
-    </header>
+    <a className="counterstrike-link" href="https://x.com/CounterStrike/photo" target="_blank" rel="noreferrer" aria-label="打开 Counter-Strike X 图片" title="Counter-Strike X 图片">
+      {imageFailed ? (
+        <span className="counterstrike-fallback">CS</span>
+      ) : (
+        <img src="https://unavatar.io/twitter/CounterStrike" alt="Counter-Strike" onError={() => setImageFailed(true)} />
+      )}
+    </a>
   )
 }
 
-function SourceCodeLink() {
+function Topbar({ steam }: { steam: SteamAuthState }) {
   return (
-    <footer className="source-footer">
-      <a href="https://github.com/Reshwell/cs2-draft-cloudflare" target="_blank" rel="noreferrer">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 .7a11.3 11.3 0 0 0-3.57 22.02c.56.1.77-.24.77-.54v-2.1c-3.14.68-3.8-1.34-3.8-1.34-.51-1.3-1.25-1.65-1.25-1.65-1.03-.7.08-.69.08-.69 1.14.08 1.74 1.17 1.74 1.17 1.01 1.73 2.65 1.23 3.3.94.1-.73.4-1.23.72-1.51-2.51-.29-5.15-1.26-5.15-5.6 0-1.24.44-2.25 1.17-3.05-.12-.29-.51-1.45.11-3.02 0 0 .95-.3 3.11 1.16A10.8 10.8 0 0 1 12 6.1c.96 0 1.92.13 2.82.39 2.15-1.46 3.1-1.16 3.1-1.16.63 1.57.24 2.73.12 3.02.73.8 1.17 1.81 1.17 3.05 0 4.35-2.65 5.3-5.17 5.59.41.35.77 1.04.77 2.1v3.11c0 .3.2.65.78.54A11.3 11.3 0 0 0 12 .7Z" />
-        </svg>
-        <span>Source Code</span>
-      </a>
-    </footer>
+    <header className="topbar">
+      <CounterStrikeLink />
+      <div className="topbar-tools">
+        <a className="icon-button" href="https://github.com/Reshwell/cs2-draft-cloudflare" target="_blank" rel="noreferrer" aria-label="GitHub 开源代码" title="GitHub 开源代码"><Icon name="github" size={18} /></a>
+        <ThemeToggle />
+        <div className="topbar-account"><SteamAccount steam={steam} compact /></div>
+      </div>
+    </header>
   )
 }
 
@@ -332,7 +355,6 @@ function HomePage({ steam }: { steam: SteamAuthState }) {
         </section>
         {error && <div className="toast error-toast">{error}</div>}
       </div>
-      <SourceCodeLink />
     </main>
   )
 }
@@ -429,14 +451,13 @@ function RoomPage({ roomCode, steam }: { roomCode: string; steam: SteamAuthState
   if (!state) {
     return (
       <main className="app-shell centered-shell">
-        <Topbar steam={steam} roomCode={roomCode} />
+        <Topbar steam={steam} />
         <div className="loading-card">
           <div className="spinner" />
           <h2>正在连接房间 {roomCode}</h2>
           <p>{connection === 'offline' ? '连接中断，正在自动重连…' : '正在建立 WebSocket 连接…'}</p>
           {error && <div className="inline-error">{error}</div>}
         </div>
-        <SourceCodeLink />
       </main>
     )
   }
@@ -483,7 +504,7 @@ function JoinRoom({
 
   return (
     <main className="app-shell centered-shell">
-      <Topbar steam={steam} roomCode={roomCode} />
+      <Topbar steam={steam} />
       <form className="panel join-panel" onSubmit={join}>
         <button type="button" className="text-button back-button" onClick={() => navigate('/')}>← 返回首页</button>
         <div className="room-code-badge">房间 / {roomCode}</div>
@@ -498,7 +519,6 @@ function JoinRoom({
         )}
         {error && <div className="inline-error">{error}</div>}
       </form>
-      <SourceCodeLink />
     </main>
   )
 }
@@ -549,7 +569,7 @@ function RoomDashboard({
 
   return (
     <main className="app-shell room-app-shell">
-      <Topbar steam={steam} roomCode={state.code} />
+      <Topbar steam={steam} />
       <div className="page-shell room-shell">
       <header className="room-header">
         <div>
@@ -611,7 +631,6 @@ function RoomDashboard({
         </section>
       )}
       </div>
-      <SourceCodeLink />
     </main>
   )
 }
