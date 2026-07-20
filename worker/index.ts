@@ -3,7 +3,8 @@ import { connect } from 'cloudflare:sockets'
 
 type TeamSide = 'A' | 'B'
 type RoomCapacity = 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12
-type RoomStatus = 'waiting' | 'pick_decision' | 'drafting' | 'finished' | 'map_veto' | 'map_finished' | 'match_started' | 'closed'
+type RoomStatus = 'waiting' | 'pick_decision' | 'drafting' | 'finished' | 'map_veto' | 'side_select' | 'map_finished' | 'match_started' | 'closed'
+type StartingSide = 'T' | 'CT'
 
 const MAX_PLAYERS = 12
 const ROOM_IDLE_MS = 2 * 60 * 60 * 1000
@@ -16,6 +17,7 @@ const MAP_POOL = [
   { id: 'anubis', name: 'Anubis' },
   { id: 'cache', name: 'Cache' },
 ] as const
+// BO1: A 禁 1 张，B 禁 2 张，A 禁 2 张，B 禁 1 张（1-2-2-1）
 const MAP_VETO_ORDER: TeamSide[] = ['A', 'B', 'B', 'A', 'A', 'B']
 
 interface Env {
@@ -69,6 +71,7 @@ interface StoredRoom {
   mapTurn: TeamSide | null
   mapBanIndex: number
   selectedMapId: string | null
+  startingSide: StartingSide | null
   rollA: number | null
   rollB: number | null
   rollWinner: TeamSide | null
@@ -97,6 +100,7 @@ interface ClientAction {
   playerId?: string
   mapId?: string
   firstPick?: boolean
+  startingSide?: StartingSide
 }
 
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8' }
@@ -803,6 +807,7 @@ export class DraftRoom extends DurableObject<Env> {
         mapTurn: null,
         mapBanIndex: 0,
         selectedMapId: null,
+        startingSide: null,
         rollA: null,
         rollB: null,
         rollWinner: null,
@@ -1036,6 +1041,7 @@ export class DraftRoom extends DurableObject<Env> {
         room.mapTurn = MAP_VETO_ORDER[0]
         room.mapBanIndex = 0
         room.selectedMapId = null
+        room.startingSide = null
         room.status = 'map_veto'
         break
       }
@@ -1052,10 +1058,19 @@ export class DraftRoom extends DurableObject<Env> {
         if (room.mapBanIndex >= MAP_VETO_ORDER.length) {
           room.selectedMapId = MAP_POOL.find((map) => !room.mapBannedIds.includes(map.id))?.id ?? null
           room.mapTurn = null
-          room.status = 'map_finished'
+          room.startingSide = null
+          room.status = 'side_select'
         } else {
           room.mapTurn = MAP_VETO_ORDER[room.mapBanIndex]
         }
+        break
+      }
+      case 'choose_starting_side': {
+        if (room.status !== 'side_select' || !room.selectedMapId) throw new Error('当前不是开局方选择阶段')
+        if (actorId !== room.captainAId) throw new Error('只有 A 队队长可以选择开局方')
+        if (action.startingSide !== 'T' && action.startingSide !== 'CT') throw new Error('开局方选择无效')
+        room.startingSide = action.startingSide
+        room.status = 'map_finished'
         break
       }
       case 'kick_player': {
@@ -1089,6 +1104,7 @@ export class DraftRoom extends DurableObject<Env> {
         room.mapTurn = null
         room.mapBanIndex = 0
         room.selectedMapId = null
+        room.startingSide = null
         room.rollA = null
         room.rollB = null
         room.rollWinner = null
@@ -1106,7 +1122,7 @@ export class DraftRoom extends DurableObject<Env> {
       }
       case 'start_match': {
         this.requireHost(actorId)
-        if (room.status !== 'map_finished' || !room.selectedMapId) throw new Error('请先完成 BO1 地图禁选')
+        if (room.status !== 'map_finished' || !room.selectedMapId || !room.startingSide) throw new Error('请先完成地图和开局方选择')
         const selectedPlayers = [...room.teamAIds, ...room.teamBIds]
           .map((playerId) => room.players.find((player) => player.id === playerId))
         if (selectedPlayers.some((player) => !player?.steamId)) throw new Error('有玩家缺少 Steam64 ID，无法加载 MatchZy 比赛')
@@ -1237,6 +1253,7 @@ export class DraftRoom extends DurableObject<Env> {
       mapBanIndex: room.mapBanIndex ?? 0,
       mapTotalBans: MAP_VETO_ORDER.length,
       selectedMapId: room.selectedMapId ?? null,
+      startingSide: room.startingSide ?? null,
       rollA: room.rollA ?? null,
       rollB: room.rollB ?? null,
       rollWinner: room.rollWinner ?? null,

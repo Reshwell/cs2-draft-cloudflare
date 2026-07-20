@@ -211,6 +211,13 @@ input:focus, select:focus { border-color: var(--orange); box-shadow: 0 0 0 3px r
 .map-result-panel { text-align: center; padding: 50px 24px; }
 .result-kicker { color: var(--muted); font-size: .75rem; font-weight: 800; }
 .map-result-name { color: var(--orange); font-size: clamp(2.4rem, 8vw, 5rem); font-weight: 950; letter-spacing: -.07em; }
+.starting-side-result { margin-top: 12px; color: var(--muted); font-size: .9rem; }
+.starting-side-result strong { color: #fff; }
+.side-select-panel { max-width: 620px; margin: 36px auto; text-align: center; padding: 46px 24px; }
+.side-select-caption { margin: 8px 0 22px; color: var(--muted); }
+.side-select-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; max-width: 360px; margin: 0 auto; }
+.side-select-actions .primary-button, .side-select-actions .secondary-button { justify-content: center; }
+.side-select-wait { margin: 22px 0 0; }
 .map-ban-summary { display: flex; justify-content: center; flex-wrap: wrap; gap: 7px; margin-top: 18px; }
 .map-ban-summary span { color: var(--muted); background: var(--surface-2); border: 1px solid var(--line); padding: 7px 10px; font-size: .72rem; }
 .final-teams-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }

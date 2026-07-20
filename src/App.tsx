@@ -500,7 +500,8 @@ function RoomDashboard({
     }
     const mapName = state.maps.find((map) => map.id === state.selectedMapId)?.name
     const mapText = mapName ? `\n\nBO1 地图：${mapName}` : ''
-    await navigator.clipboard.writeText(`${teamText('A', state.teamAIds)}\n\n${teamText('B', state.teamBIds)}${mapText}`)
+    const sideText = state.startingSide ? `\nA 队开局：${state.startingSide}` : ''
+    await navigator.clipboard.writeText(`${teamText('A', state.teamAIds)}\n\n${teamText('B', state.teamBIds)}${mapText}${sideText}`)
   }
 
   return (
@@ -552,6 +553,8 @@ function RoomDashboard({
       )}
 
       {state.status === 'map_veto' && <MapVetoBoard state={state} me={me} connection={connection} playerMap={playerMap} send={send} />}
+
+      {state.status === 'side_select' && <StartingSideBoard state={state} me={me} send={send} />}
 
       {state.status === 'map_finished' && <MapResult state={state} me={me} playerMap={playerMap} send={send} copyResult={copyResult} />}
 
@@ -877,6 +880,7 @@ function MapResult({
       <section className="panel map-result-panel">
         <div className="result-kicker">对局结果</div>
         <div className="map-result-name">{selectedMap?.name ?? '未确定'}</div>
+        <div className="starting-side-result">A 队选择 <strong>{state.startingSide === 'T' ? 'T 开' : 'CT 开'}</strong></div>
         <div className="map-ban-summary">
           {state.maps.filter((map) => state.bannedMapIds.includes(map.id)).map((map) => (
             <span key={map.id}>{map.name}</span>
@@ -893,6 +897,35 @@ function MapResult({
         {me.isHost && <button className="danger-button compact" onClick={() => send({ type: 'close_room' })}>关闭房间</button>}
       </section>
     </>
+  )
+}
+
+function StartingSideBoard({
+  state,
+  me,
+  send,
+}: {
+  state: PublicRoomState
+  me: PublicPlayer
+  send: (action: ClientAction) => void
+}) {
+  const selectedMap = state.maps.find((map) => map.id === state.selectedMapId)
+  const captainA = state.players.find((player) => player.id === state.captainAId)
+  const canChoose = me.id === state.captainAId
+  return (
+    <section className="panel side-select-panel">
+      <div className="result-kicker">地图已确定</div>
+      <div className="map-result-name">{selectedMap?.name ?? '未确定'}</div>
+      <p className="side-select-caption">由 A 队选择开局方</p>
+      {canChoose ? (
+        <div className="side-select-actions">
+          <button className="primary-button" onClick={() => send({ type: 'choose_starting_side', startingSide: 'T' })}>T 开</button>
+          <button className="secondary-button" onClick={() => send({ type: 'choose_starting_side', startingSide: 'CT' })}>CT 开</button>
+        </div>
+      ) : (
+        <p className="hint side-select-wait">等待 A 队队长{captainA ? `（${captainA.name}）` : ''}选择</p>
+      )}
+    </section>
   )
 }
 
@@ -918,6 +951,7 @@ function MatchStarted({
     <section className="panel map-result-panel">
       <h2>比赛已开始</h2>
       <div className="map-result-name">{selectedMap?.name ?? '地图已加载'}</div>
+      <div className="starting-side-result">A 队选择 <strong>{state.startingSide === 'T' ? 'T 开' : 'CT 开'}</strong></div>
       <p className="muted">玩家可以自由加入 CT、T 或观战。</p>
       <div className="match-connect-card">
         <div>
@@ -1031,6 +1065,7 @@ function statusLabel(status: PublicRoomState['status']) {
     drafting: '选人中',
     finished: '已完成',
     map_veto: '地图禁选',
+    side_select: '选择开局方',
     map_finished: '地图已定',
     match_started: '竞技比赛中',
     closed: '已关闭',

@@ -1,5 +1,6 @@
-export type RoomStatus = 'waiting' | 'pick_decision' | 'drafting' | 'finished' | 'map_veto' | 'map_finished' | 'match_started' | 'closed'
+export type RoomStatus = 'waiting' | 'pick_decision' | 'drafting' | 'finished' | 'map_veto' | 'side_select' | 'map_finished' | 'match_started' | 'closed'
 export type TeamSide = 'A' | 'B'
+export type StartingSide = 'T' | 'CT'
 
 export interface MapOption {
   id: string
@@ -46,6 +47,7 @@ export interface PublicRoomState {
   mapBanIndex: number
   mapTotalBans: number
   selectedMapId: string | null
+  startingSide: StartingSide | null
   rollA: number | null
   rollB: number | null
   rollWinner: TeamSide | null
@@ -72,6 +74,7 @@ export type ClientAction =
   | { type: 'choose_pick_order'; firstPick: boolean }
   | { type: 'start_map_veto' }
   | { type: 'ban_map'; mapId: string }
+  | { type: 'choose_starting_side'; startingSide: StartingSide }
   | { type: 'pick_player'; playerId: string }
   | { type: 'kick_player'; playerId: string }
   | { type: 'start_match' }
