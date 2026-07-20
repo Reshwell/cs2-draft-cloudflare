@@ -101,8 +101,9 @@ input:focus, select:focus { border-color: var(--orange); box-shadow: 0 0 0 3px r
 
 .toast { position: fixed; right: 22px; bottom: 22px; z-index: 10; max-width: 420px; padding: 13px 16px; border-radius: 12px; box-shadow: 0 14px 40px rgba(0,0,0,.4); }
 .source-footer { display: flex; justify-content: center; padding: 0 24px 24px; }
-.source-footer a { color: var(--muted-2); font-size: .7rem; text-decoration: none; transition: color .15s ease; }
-.source-footer a:hover { color: var(--orange); }
+.source-footer a { display: inline-flex; align-items: center; gap: 7px; color: #69a9ff; font-size: .86rem; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; transition: color .15s ease; }
+.source-footer a:hover { color: #a6ceff; }
+.source-footer svg { width: 18px; height: 18px; fill: currentColor; }
 .error-toast, .inline-error { color: #ffb9be; background: #301619; border: 1px solid rgba(255,89,100,.34); }
 .inline-error { margin-top: 15px; padding: 12px; border-radius: 10px; }
 .notice-toast { color: #dfffea; background: #123528; border: 1px solid rgba(80,216,144,.32); white-space: pre-wrap; }

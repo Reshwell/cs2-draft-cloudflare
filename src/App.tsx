@@ -150,7 +150,10 @@ function SourceCodeLink() {
   return (
     <footer className="source-footer">
       <a href="https://github.com/Reshwell/cs2-draft-cloudflare" target="_blank" rel="noreferrer">
-        开源代码
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 .7a11.3 11.3 0 0 0-3.57 22.02c.56.1.77-.24.77-.54v-2.1c-3.14.68-3.8-1.34-3.8-1.34-.51-1.3-1.25-1.65-1.25-1.65-1.03-.7.08-.69.08-.69 1.14.08 1.74 1.17 1.74 1.17 1.01 1.73 2.65 1.23 3.3.94.1-.73.4-1.23.72-1.51-2.51-.29-5.15-1.26-5.15-5.6 0-1.24.44-2.25 1.17-3.05-.12-.29-.51-1.45.11-3.02 0 0 .95-.3 3.11 1.16A10.8 10.8 0 0 1 12 6.1c.96 0 1.92.13 2.82.39 2.15-1.46 3.1-1.16 3.1-1.16.63 1.57.24 2.73.12 3.02.73.8 1.17 1.81 1.17 3.05 0 4.35-2.65 5.3-5.17 5.59.41.35.77 1.04.77 2.1v3.11c0 .3.2.65.78.54A11.3 11.3 0 0 0 12 .7Z" />
+        </svg>
+        <span>Source Code</span>
       </a>
     </footer>
   )
@@ -922,7 +925,7 @@ function MatchStarted({
           <strong>{serverAddress}</strong>
         </div>
         {connectUrl ? (
-          <a className="primary-button" href={connectUrl}>进入游戏</a>
+          <a className="primary-button" href={connectUrl} target="_blank" rel="noopener noreferrer">进入游戏</a>
         ) : (
           <span className="muted">无法获取服务器地址</span>
         )}
