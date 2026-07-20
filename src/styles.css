@@ -658,3 +658,56 @@ input:focus, select:focus {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
+
+/* Home composition: quiet, tool-first, and icon-led. */
+.home-content { width: min(1040px, calc(100% - 48px)); padding-top: 72px; }
+.home-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 32px;
+  max-width: none;
+  margin-bottom: 40px;
+}
+.home-hero h1 { margin-top: 8px; }
+.home-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.action-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 248px;
+}
+.action-card-top { display: flex; align-items: center; justify-content: space-between; }
+.action-card-mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  border: 1px solid #eaeaea;
+  border-radius: 6px;
+  color: #171717;
+  background: #f2f2f2;
+}
+.action-card-mark svg { display: block; }
+.create-card .action-card-mark { color: #ffffff; background: #171717; border-color: #171717; }
+.action-card .panel-heading { margin: 20px 0 32px; }
+.action-card .panel-heading h2 { font-size: 24px; line-height: 32px; letter-spacing: -.96px; }
+.action-card .panel-heading p { margin-top: 4px; }
+.action-card .full-button { margin-top: auto; }
+.action-note { margin-bottom: 0; text-align: center; }
+.button-icon { display: inline-flex; align-items: center; }
+.active-rooms-panel { margin-top: 32px; }
+.active-rooms-panel .section-title-row { align-items: flex-end; margin-bottom: 20px; }
+.active-rooms-panel .section-title-row .eyebrow { margin-bottom: 4px; }
+.active-rooms-panel .section-title-row h2 { font-size: 24px; line-height: 32px; }
+.active-room-card b { display: inline-flex; align-items: center; gap: 6px; }
+.active-room-card b svg { flex: 0 0 auto; }
+
+@media (max-width: 600px) {
+  .home-content { width: calc(100% - 24px); padding-top: 48px; }
+  .home-hero { display: block; margin-bottom: 32px; }
+  .home-grid { grid-template-columns: 1fr; }
+  .action-card { min-height: 0; }
+  .action-card .panel-heading { margin-bottom: 24px; }
+  .active-rooms-panel { margin-top: 24px; }
+}

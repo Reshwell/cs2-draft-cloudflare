@@ -110,6 +110,33 @@ function steamLogin(next = window.location.pathname) {
   window.location.assign(`/api/auth/steam/login?next=${encodeURIComponent(next || '/')}`)
 }
 
+type IconName = 'brand' | 'create' | 'join' | 'arrow'
+
+function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
+  const common = {
+    width: size,
+    height: size,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+  }
+
+  if (name === 'brand') {
+    return <svg {...common}><path d="M5 7h5v5H5zM14 7h5v5h-5zM5 16h5v5H5zM14 16h5v5h-5z" /><path d="M10 9.5h4M10 18.5h4" /></svg>
+  }
+  if (name === 'create') {
+    return <svg {...common}><path d="M12 5v14M5 12h14" /></svg>
+  }
+  if (name === 'join') {
+    return <svg {...common}><path d="M13 5h6v14h-6M3 12h11M10 8l4 4-4 4" /></svg>
+  }
+  return <svg {...common}><path d="M5 12h13M13 6l6 6-6 6" /></svg>
+}
+
 function SteamAccount({ steam, compact = false }: { steam: SteamAuthState; compact?: boolean }) {
   if (steam.loading) return <span className="steam-account muted">检查 Steam 登录…</span>
   if (!steam.user) {
@@ -127,7 +154,7 @@ function SteamAccount({ steam, compact = false }: { steam: SteamAuthState; compa
 function BrandMark() {
   return (
     <button className="brand-mark" onClick={() => navigate('/')} type="button" aria-label="返回首页">
-      <span className="brand-mark-icon">+</span>
+      <span className="brand-mark-icon"><Icon name="brand" size={17} /></span>
       <span>选人房</span>
     </button>
   )
@@ -138,7 +165,7 @@ function Topbar({ steam, roomCode }: { steam: SteamAuthState; roomCode?: string 
     <header className="topbar">
       <BrandMark />
       <nav className="topnav" aria-label="主导航">
-        <button className="topnav-item active" onClick={() => navigate('/')} type="button"><span>◈</span> 大厅</button>
+        <button className="topnav-item active" onClick={() => navigate('/')} type="button">大厅</button>
         {roomCode && <span className="topnav-room">房间 / {roomCode}</span>}
       </nav>
       <div className="topbar-account"><SteamAccount steam={steam} compact /></div>
@@ -223,29 +250,39 @@ function HomePage({ steam }: { steam: SteamAuthState }) {
       <Topbar steam={steam} />
       <div className="page-shell home-content">
         <section className="hero home-hero">
-          <h1>CS2 队长选人</h1>
-          <p>最多 12 人</p>
+          <div className="eyebrow">CS2 选人房</div>
+          <h1>开始一场选人</h1>
+          <p>创建房间，和朋友分队。</p>
         </section>
 
-      <section className="home-grid">
+        <section className="home-grid">
         <form className="panel action-card create-card" onSubmit={createRoom}>
-          <div className="action-card-mark">+</div>
+          <div className="action-card-top">
+            <div className="action-card-mark"><Icon name="create" /></div>
+            <span className="card-kicker">房主</span>
+          </div>
           <div className="panel-heading">
             <div>
               <h2>创建房间</h2>
+              <p>创建后邀请朋友加入</p>
             </div>
           </div>
 
           <button className="primary-button full-button" disabled={busy || !steam.user} type="submit">
-            {busy ? '创建中…' : '创建房间'}
+            {busy ? '创建中…' : '创建房间'} <Icon name="arrow" size={16} />
           </button>
+          {!steam.user && <p className="form-note action-note">需要先登录 Steam</p>}
         </form>
 
         <form className="panel action-card join-card" onSubmit={openRoom}>
-          <div className="action-card-mark join-mark">↗</div>
+          <div className="action-card-top">
+            <div className="action-card-mark join-mark"><Icon name="join" /></div>
+            <span className="card-kicker">玩家</span>
+          </div>
           <div className="panel-heading">
             <div>
               <h2>加入房间</h2>
+              <p>输入房间号进入大厅</p>
             </div>
           </div>
           <label>
@@ -259,39 +296,41 @@ function HomePage({ steam }: { steam: SteamAuthState }) {
               required
             />
           </label>
-          <button className="secondary-button full-button" disabled={!steam.user} type="submit">加入房间 <span>→</span></button>
+          <button className="secondary-button full-button" disabled={!steam.user} type="submit">加入房间 <Icon name="arrow" size={16} /></button>
+          {!steam.user && <p className="form-note action-note">需要先登录 Steam</p>}
         </form>
-      </section>
+        </section>
 
-      <section className="panel active-rooms-panel">
-        <div className="section-title-row">
-          <div>
-            <h2>活跃房间</h2>
+        <section className="panel active-rooms-panel">
+          <div className="section-title-row">
+            <div>
+              <div className="eyebrow">实时更新</div>
+              <h2>活跃房间</h2>
+            </div>
+            <span className="capacity-badge"><i className="live-dot" /> {activeRooms.length} 个</span>
           </div>
-          <span className="capacity-badge"><i className="live-dot" /> {activeRooms.length} 个</span>
-        </div>
-        {roomsLoading ? (
-          <div className="empty-state compact-empty">正在加载…</div>
-        ) : activeRooms.length === 0 ? (
-          <div className="empty-state compact-empty">暂无可加入房间</div>
-        ) : (
-          <div className="active-room-list">
-            {activeRooms.map((room) => (
-              <button
-                className="active-room-card"
-                key={room.code}
-                type="button"
-                onClick={() => navigate(`/room/${room.code}`)}
-              >
-                <strong>{room.code}</strong>
-                <span><i className="status-dot" />{room.playerCount}/{room.maxPlayers} 人</span>
-                <b>加入 →</b>
-              </button>
-            ))}
-          </div>
-        )}
-      </section>
-      {error && <div className="toast error-toast">{error}</div>}
+          {roomsLoading ? (
+            <div className="empty-state compact-empty">正在加载…</div>
+          ) : activeRooms.length === 0 ? (
+            <div className="empty-state compact-empty">暂无可加入房间</div>
+          ) : (
+            <div className="active-room-list">
+              {activeRooms.map((room) => (
+                <button
+                  className="active-room-card"
+                  key={room.code}
+                  type="button"
+                  onClick={() => navigate(`/room/${room.code}`)}
+                >
+                  <strong>{room.code}</strong>
+                  <span><i className="status-dot" />{room.playerCount}/{room.maxPlayers} 人</span>
+                  <b>加入 <Icon name="arrow" size={15} /></b>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+        {error && <div className="toast error-toast">{error}</div>}
       </div>
       <SourceCodeLink />
     </main>
