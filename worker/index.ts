@@ -105,6 +105,7 @@ const STEAM_SESSION_COOKIE = 'cs2_steam_session'
 const STEAM_LOGIN_STATE_COOKIE = 'cs2_steam_login_state'
 const STEAM_SESSION_MAX_AGE = 7 * 24 * 60 * 60
 const STEAM_LOGIN_STATE_MAX_AGE = 10 * 60
+const RCON_OPERATION_TIMEOUT_MS = 10_000
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: JSON_HEADERS })
@@ -367,13 +368,27 @@ function rconPacket(id: number, type: number, body: string): Uint8Array {
   return packet
 }
 
-async function readRconPacketWithTimeout(reader: RconPacketReader, timeoutMs = 5000): Promise<RconPacket> {
+async function withRconTimeout<T>(operation: Promise<T>, phase: string, timeoutMs = RCON_OPERATION_TIMEOUT_MS): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<T>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(`RCON ${phase}超时（${timeoutMs / 1000} 秒）`)), timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timeout) clearTimeout(timeout)
+  }
+}
+
+async function readRconPacketWithTimeout(reader: RconPacketReader, timeoutMs = RCON_OPERATION_TIMEOUT_MS): Promise<RconPacket> {
   let timeout: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([
       reader.readPacket(),
       new Promise<RconPacket>((_, reject) => {
-        timeout = setTimeout(() => reject(new Error('RCON 连接超时')), timeoutMs)
+        timeout = setTimeout(() => reject(new Error(`RCON 读取响应超时（${timeoutMs / 1000} 秒）`)), timeoutMs)
       }),
     ])
   } finally {
@@ -382,7 +397,7 @@ async function readRconPacketWithTimeout(reader: RconPacketReader, timeoutMs = 5
 }
 
 async function rconExecute(command: string, env: Env): Promise<string> {
-  const host = env.RCON_HOST ?? '2561417364.fuzzys'
+  const host = env.RCON_HOST ?? '1.14.22.237'
   const port = Number(env.RCON_PORT ?? '27000')
   if (!env.RCON_PASSWORD || !host || !Number.isInteger(port)) throw new Error('RCON 尚未配置')
 
@@ -390,7 +405,8 @@ async function rconExecute(command: string, env: Env): Promise<string> {
   const writer = socket.writable.getWriter()
   const packetReader = new RconPacketReader(socket.readable.getReader())
   try {
-    await writer.write(rconPacket(1, 3, env.RCON_PASSWORD))
+    await withRconTimeout(socket.opened, '连接')
+    await withRconTimeout(writer.write(rconPacket(1, 3, env.RCON_PASSWORD)), '写入认证')
     let authenticated = false
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const response = await readRconPacketWithTimeout(packetReader)
@@ -402,7 +418,7 @@ async function rconExecute(command: string, env: Env): Promise<string> {
     }
     if (!authenticated) throw new Error('RCON 认证失败')
 
-    await writer.write(rconPacket(2, 2, command))
+    await withRconTimeout(writer.write(rconPacket(2, 2, command)), '写入命令')
     if (command === 'quit') return '服务器重启指令已发送'
     const response = await readRconPacketWithTimeout(packetReader)
     return response.body.trim() || '指令已发送'
@@ -431,7 +447,10 @@ async function rconExecuteWithRetry(
       return await rconExecute(command, env)
     } catch (error) {
       lastError = error
-      if (attempt < attempts) await waitMs(attempt * 1_000)
+      if (attempt < attempts) {
+        report(`${step}失败：${errorMessage(error)}，正在重新连接…`)
+        await waitMs(attempt * 1_000)
+      }
     }
   }
   throw new Error(`${step}失败：${errorMessage(lastError)}`)
