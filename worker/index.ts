@@ -30,6 +30,7 @@ interface Env {
   GAME_SERVER_HOST?: string
   GAME_SERVER_PORT?: string
   RCON_PASSWORD?: string
+  RCON_TEST_PANEL_PASSWORD?: string
   PUBLIC_ORIGIN?: string
 }
 
@@ -110,6 +111,8 @@ const STEAM_LOGIN_STATE_COOKIE = 'cs2_steam_login_state'
 const STEAM_SESSION_MAX_AGE = 7 * 24 * 60 * 60
 const STEAM_LOGIN_STATE_MAX_AGE = 10 * 60
 const RCON_OPERATION_TIMEOUT_MS = 10_000
+const RCON_TEST_PANEL_PATH = '/__ops/rcon-check-7b4e8f12c5a94d6f'
+const RCON_TEST_API_PATH = '/api/__ops/rcon-check-7b4e8f12c5a94d6f'
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: JSON_HEADERS })
@@ -497,6 +500,38 @@ function gameServerEndpoint(env: Env): { host: string; port: number } | null {
   return { host, port }
 }
 
+function rconTestPanel(): Response {
+  const mapOptions = MAP_POOL.map((map) => `<option value="${map.id}">${map.name}</option>`).join('')
+  const html = `<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RCON 测试</title>
+<style>
+  :root{color-scheme:dark;font-family:system-ui,-apple-system,"Microsoft YaHei",sans-serif;background:#0b0d11;color:#f4f6f8}
+  body{max-width:760px;margin:0 auto;padding:36px 18px}main{border:1px solid #2b3039;border-radius:18px;padding:24px;background:#14171d;box-shadow:0 20px 60px #0005}
+  h1{margin:0 0 8px;font-size:24px}p{color:#9aa2ae;font-size:14px}label{display:grid;gap:8px;margin:18px 0;color:#aeb5c0;font-size:13px}
+  input,select,button{font:inherit;border-radius:10px;border:1px solid #343a45;padding:11px 13px;background:#0e1014;color:#fff}button{cursor:pointer;background:#ff6a00;border-color:#ff6a00;color:#1b0f06;font-weight:800;margin:4px 6px 0 0}button.secondary{background:#20252d;border-color:#3a414d;color:#fff}
+  pre{min-height:220px;white-space:pre-wrap;overflow:auto;margin:20px 0 0;padding:14px;border-radius:10px;background:#090a0d;border:1px solid #252a32;color:#cbd3dd;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}
+</style></head>
+<body><main><h1>RCON 测试面板</h1><p>仅支持读取状态、结束热身和切换服役地图。</p>
+<label>面板密码<input id="password" type="password" autocomplete="off"></label>
+<label>目标地图<select id="map">${mapOptions}</select></label>
+<button data-action="status">读取状态</button><button class="secondary" data-action="endmatch">结束热身</button><button data-action="map">切换地图</button>
+<pre id="output">等待操作…</pre></main>
+<script>
+const output=document.getElementById('output');
+async function run(action){
+  output.textContent='执行中…';
+  try{
+    const response=await fetch('${RCON_TEST_API_PATH}',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({password:document.getElementById('password').value,action,mapId:document.getElementById('map').value})});
+    const data=await response.json();
+    output.textContent=data.messages?.join('\\n')+(data.messages?'\\n\\n':'')+(data.status||data.output||data.error||'完成');
+  }catch(error){output.textContent=String(error)}
+}
+document.querySelectorAll('button[data-action]').forEach((button)=>button.addEventListener('click',()=>run(button.dataset.action)));
+</script></body></html>`
+  return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } })
+}
+
 function matchConfigForRoom(room: StoredRoom) {
   const playerById = new Map(room.players.map((player) => [player.id, player]))
   const players = (ids: string[]) => Object.fromEntries(ids.map((id) => {
@@ -662,6 +697,41 @@ export default {
 
     if (url.pathname === '/api/health') {
       return json({ ok: true, service: 'cs2-draft-room' })
+    }
+
+    if (url.pathname === RCON_TEST_PANEL_PATH && request.method === 'GET') {
+      return rconTestPanel()
+    }
+
+    if (url.pathname === RCON_TEST_API_PATH && request.method === 'POST') {
+      const body = await request.json().catch(() => null) as Record<string, unknown> | null
+      if (!env.RCON_TEST_PANEL_PASSWORD || body?.password !== env.RCON_TEST_PANEL_PASSWORD) {
+        return json({ error: '面板密码错误' }, 401)
+      }
+      const messages: string[] = []
+      const report = (message: string) => messages.push(message)
+      try {
+        const action = String(body?.action ?? '')
+        if (action === 'status') {
+          const status = await rconExecuteWithRetry('status', env, '读取服务器状态', report)
+          return json({ ok: true, status, messages })
+        }
+        if (action === 'endmatch') {
+          const output = await rconExecuteWithRetry('css_endmatch', env, '结束当前热身/比赛', report)
+          return json({ ok: true, output, messages })
+        }
+        if (action === 'map') {
+          const mapId = String(body?.mapId ?? '')
+          if (!MAP_POOL.some((map) => map.id === mapId)) return json({ error: '地图不在当前服役地图池' }, 400)
+          const map = matchMapName(mapId)
+          const output = await rconExecuteWithRetry(`map "${map}"`, env, `切换地图 ${map}`, report)
+          await waitForMapLoaded(map, env, report)
+          return json({ ok: true, output, messages })
+        }
+        return json({ error: '不支持的测试操作' }, 400)
+      } catch (error) {
+        return json({ ok: false, error: errorMessage(error), messages }, 502)
+      }
     }
 
     if (url.pathname === '/api/rooms' && request.method === 'GET') {
