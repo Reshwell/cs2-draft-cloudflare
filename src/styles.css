@@ -157,9 +157,13 @@ input:focus, select:focus { border-color: var(--orange); box-shadow: 0 0 0 3px r
 .presence { width: 7px; height: 7px; flex: 0 0 auto; }
 .player-card strong, .team-player strong, .pick-player-card strong { display: block; font-size: .82rem; }
 .player-card small, .team-player small, .pick-player-card small { display: block; margin-top: 4px; color: var(--muted); font-size: .68rem; overflow-wrap: anywhere; }
+.player-card-actions { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.host-transfer-link { border: 0; padding: 0; color: var(--blue); background: transparent; font-size: .72rem; }
+.host-transfer-link:hover { color: #a6ceff; }
 .player-flags { display: flex; flex-direction: column; gap: 3px; }
 .player-flags span, .captain-tag { color: var(--orange); background: rgba(255,106,0,.1); padding: 4px 5px; border-radius: 6px; font-size: .59rem; white-space: nowrap; }
 .button-stack { display: grid; gap: 8px; margin-top: 18px; }
+.leave-room-button { width: 100%; justify-content: center; margin-top: 18px; }
 .captain-preview { display: grid; gap: 8px; margin-top: 18px; padding-top: 17px; border-top: 1px solid var(--line); }
 .captain-preview > div { display: flex; align-items: center; gap: 9px; }
 .team-letter { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 9px; font-weight: 900; }

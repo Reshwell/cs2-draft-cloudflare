@@ -1073,19 +1073,29 @@ export class DraftRoom extends DurableObject<Env> {
         room.status = 'map_finished'
         break
       }
+      case 'transfer_host': {
+        this.requireHost(actorId)
+        this.requireWaiting()
+        const targetId = String(action.playerId ?? '')
+        if (targetId === actorId) throw new Error('不能把房主转给自己')
+        if (!this.hasPlayer(targetId)) throw new Error('选择的玩家不在房间中')
+        room.hostPlayerId = targetId
+        noticeMessage = '房主已转移'
+        break
+      }
+      case 'leave_room': {
+        this.requireWaiting()
+        if (actorId === room.hostPlayerId) throw new Error('请先把房主转给其他玩家')
+        this.removeWaitingPlayer(actorId)
+        break
+      }
       case 'kick_player': {
         this.requireHost(actorId)
         if (room.status !== 'waiting') throw new Error('选人开始后不能移出玩家')
         const targetId = String(action.playerId ?? '')
         if (targetId === room.hostPlayerId) throw new Error('不能移出房主')
-        const before = room.players.length
-        room.players = room.players.filter((player) => player.id !== targetId)
-        if (room.players.length === before) throw new Error('没有找到该玩家')
-        if (room.captainAId === targetId) room.captainAId = null
-        if (room.captainBId === targetId) room.captainBId = null
-        room.teamAIds = room.captainAId ? [room.captainAId] : []
-        room.teamBIds = room.captainBId ? [room.captainBId] : []
-        this.updateAutomaticCaptains()
+        if (!this.hasPlayer(targetId)) throw new Error('没有找到该玩家')
+        this.removeWaitingPlayer(targetId)
         this.closePlayerSockets(targetId, 4401, 'removed by host')
         break
       }
@@ -1152,6 +1162,8 @@ export class DraftRoom extends DurableObject<Env> {
     this.broadcastState()
     if (noticeMessage) this.broadcastNotice(noticeMessage)
 
+    if (action.type === 'leave_room') this.closePlayerSockets(actorId, 4401, 'left room')
+
     if (room.status === 'closed') {
       for (const ws of this.ctx.getWebSockets()) {
         try { ws.close(4404, 'room closed') } catch { /* Ignore close races. */ }
@@ -1193,6 +1205,22 @@ export class DraftRoom extends DurableObject<Env> {
 
   private hasPlayer(playerId: string): boolean {
     return Boolean(this.room?.players.some((player) => player.id === playerId))
+  }
+
+  private removeWaitingPlayer(playerId: string): void {
+    if (!this.room) return
+    const wasCaptain = this.room.captainAId === playerId || this.room.captainBId === playerId
+    this.room.players = this.room.players.filter((player) => player.id !== playerId)
+    this.room.teamAIds = this.room.teamAIds.filter((id) => id !== playerId)
+    this.room.teamBIds = this.room.teamBIds.filter((id) => id !== playerId)
+    if (wasCaptain) {
+      this.room.captainAId = null
+      this.room.captainBId = null
+      this.room.teamAIds = []
+      this.room.teamBIds = []
+      this.room.captainsManual = false
+      this.updateAutomaticCaptains()
+    }
   }
 
   private closePlayerSockets(playerId: string, code: number, reason: string): void {

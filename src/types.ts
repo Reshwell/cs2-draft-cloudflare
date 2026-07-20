@@ -76,6 +76,8 @@ export type ClientAction =
   | { type: 'ban_map'; mapId: string }
   | { type: 'choose_starting_side'; startingSide: StartingSide }
   | { type: 'pick_player'; playerId: string }
+  | { type: 'transfer_host'; playerId: string }
+  | { type: 'leave_room' }
   | { type: 'kick_player'; playerId: string }
   | { type: 'start_match' }
   | { type: 'reset_room' }

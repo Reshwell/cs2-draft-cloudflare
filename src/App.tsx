@@ -344,7 +344,11 @@ function RoomPage({ roomCode, steam }: { roomCode: string; steam: SteamAuthState
           localStorage.removeItem(`${SESSION_PREFIX}${roomCode}`)
           setSession(null)
           setState(null)
-          setError(event.code === 4404 ? '房间不存在或已经关闭' : '身份已失效，请重新加入')
+          if (event.reason === 'left room') {
+            navigate('/')
+          } else {
+            setError(event.code === 4404 ? '房间不存在或已经关闭' : '身份已失效，请重新加入')
+          }
           return
         }
         const delay = Math.min(1000 * 2 ** retryCountRef.current, 10000)
@@ -622,7 +626,10 @@ function WaitingRoom({
               key={player.id}
               player={player}
               action={me.isHost && !player.isHost ? (
-                <button className="danger-link" onClick={() => send({ type: 'kick_player', playerId: player.id })}>移出</button>
+                <div className="player-card-actions">
+                  <button className="host-transfer-link" onClick={() => send({ type: 'transfer_host', playerId: player.id })}>转让房主</button>
+                  <button className="danger-link" onClick={() => send({ type: 'kick_player', playerId: player.id })}>移出</button>
+                </div>
               ) : null}
             />
           ))}
@@ -674,6 +681,7 @@ function WaitingRoom({
             <CaptainLine side="B" player={state.players.find((p) => p.id === state.captainBId)} />
           </div>
         )}
+        <button className="danger-button compact leave-room-button" onClick={() => send({ type: 'leave_room' })}>退出房间</button>
       </aside>
     </div>
   )
