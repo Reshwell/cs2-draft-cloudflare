@@ -183,23 +183,23 @@ function ThemeToggle() {
   )
 }
 
-function CounterStrikeLink() {
+function CounterStrikeImage() {
   const [imageFailed, setImageFailed] = useState(false)
   return (
-    <a className="counterstrike-link" href="https://x.com/CounterStrike/photo" target="_blank" rel="noreferrer" aria-label="打开 Counter-Strike X 图片" title="Counter-Strike X 图片">
+    <span className="counterstrike-image" aria-label="Counter-Strike 图片">
       {imageFailed ? (
         <span className="counterstrike-fallback">CS</span>
       ) : (
         <img src="https://unavatar.io/twitter/CounterStrike" alt="Counter-Strike" onError={() => setImageFailed(true)} />
       )}
-    </a>
+    </span>
   )
 }
 
 function Topbar({ steam }: { steam: SteamAuthState }) {
   return (
     <header className="topbar">
-      <CounterStrikeLink />
+      <CounterStrikeImage />
       <div className="topbar-tools">
         <a className="icon-button" href="https://github.com/Reshwell/cs2-draft-cloudflare" target="_blank" rel="noreferrer" aria-label="GitHub 开源代码" title="GitHub 开源代码"><Icon name="github" size={18} /></a>
         <ThemeToggle />
@@ -272,22 +272,11 @@ function HomePage({ steam }: { steam: SteamAuthState }) {
     <main className="app-shell home-shell">
       <Topbar steam={steam} />
       <div className="page-shell home-content">
-        <section className="hero home-hero">
-          <div className="eyebrow">CS2 选人房</div>
-          <h1>开始一场选人</h1>
-          <p>创建房间，和朋友分队。</p>
-        </section>
-
         <section className="home-grid">
         <form className="panel action-card create-card" onSubmit={createRoom}>
-          <div className="action-card-top">
-            <div className="action-card-mark"><Icon name="create" /></div>
-            <span className="card-kicker">房主</span>
-          </div>
           <div className="panel-heading">
             <div>
               <h2>创建房间</h2>
-              <p>创建后邀请朋友加入</p>
             </div>
           </div>
 
@@ -298,14 +287,9 @@ function HomePage({ steam }: { steam: SteamAuthState }) {
         </form>
 
         <form className="panel action-card join-card" onSubmit={openRoom}>
-          <div className="action-card-top">
-            <div className="action-card-mark join-mark"><Icon name="join" /></div>
-            <span className="card-kicker">玩家</span>
-          </div>
           <div className="panel-heading">
             <div>
               <h2>加入房间</h2>
-              <p>输入房间号进入大厅</p>
             </div>
           </div>
           <label>
@@ -573,9 +557,7 @@ function RoomDashboard({
       <div className="page-shell room-shell">
       <header className="room-header">
         <div>
-          <div className="eyebrow">实时选人</div>
           <h1>房间 {state.code}</h1>
-          <p>{state.status === 'waiting' ? '最多 12 人' : `${state.players.length} 人 · A/B ${state.teamSize}/${state.capacity - state.teamSize}`}</p>
         </div>
         <div className="header-actions">
           <span className={`connection-pill ${connection}`}>
