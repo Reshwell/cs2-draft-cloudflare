@@ -309,7 +309,7 @@ button { -webkit-tap-highlight-color: transparent; }
   padding: 48px 0 64px;
 }
 .topbar {
-  width: min(1200px, calc(100% - 48px));
+  width: min(1040px, calc(100% - 48px));
   height: 64px;
   margin: 16px auto 0;
   padding: 0 16px;
@@ -880,6 +880,7 @@ input:focus, select:focus {
   border: 1px solid #eaeaea;
   border-radius: 6px;
   background: #f2f2f2;
+  margin-left: 12px;
 }
 .counterstrike-image img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .counterstrike-image .counterstrike-fallback { color: #171717; }
@@ -891,3 +892,43 @@ input:focus, select:focus {
 :root[data-theme="dark"] .steam-account .text-button { color: #a0a0a0 !important; }
 :root[data-theme="dark"] .counterstrike-image { border-color: #2e2e2e; background: #1a1a1a; }
 :root[data-theme="dark"] .counterstrike-image .counterstrike-fallback { color: #ededed; }
+
+.join-panel-topline { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 32px; }
+.join-panel-topline .back-button { margin: 0; }
+.join-panel-topline .room-code-badge { flex: 0 0 auto; }
+
+.map-card {
+  isolation: isolate;
+  background-color: #fafafa;
+  background-image: none;
+}
+.map-card::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background-image: linear-gradient(90deg, rgba(255, 255, 255, .96) 0%, rgba(255, 255, 255, .78) 62%, rgba(255, 255, 255, .48) 100%), var(--map-bg);
+  background-position: center;
+  background-size: cover;
+  opacity: .88;
+  transition: opacity .15s ease, transform .2s ease;
+}
+.map-card > * { position: relative; z-index: 1; }
+.map-card.selectable:hover::before { opacity: 1; transform: scale(1.025); }
+.map-card.banned::before { opacity: .2; }
+:root[data-theme="dark"] .map-card {
+  background-color: #1a1a1a;
+}
+:root[data-theme="dark"] .map-card::before {
+  background-image: linear-gradient(90deg, rgba(0, 0, 0, .92) 0%, rgba(0, 0, 0, .7) 62%, rgba(0, 0, 0, .42) 100%), var(--map-bg);
+  opacity: .78;
+}
+:root[data-theme="dark"] .map-card.selectable:hover::before { opacity: .92; }
+:root[data-theme="dark"] .map-card.banned::before { opacity: .12; }
+:root[data-theme="dark"] .join-panel-topline .room-code-badge { color: #ededed; background: #1a1a1a; border-color: #454545; }
+
+@media (max-width: 600px) {
+  .topbar { width: calc(100% - 24px); }
+  .counterstrike-image { margin-left: 8px; }
+  .join-panel-topline { align-items: flex-start; }
+}

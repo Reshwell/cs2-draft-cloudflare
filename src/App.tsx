@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type {
   ClientAction,
   PublicPlayer,
@@ -194,6 +194,20 @@ function CounterStrikeImage() {
       )}
     </span>
   )
+}
+
+const MAP_THUMBNAILS: Record<string, string> = {
+  dust2: 'https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/main/images/thumbs/de_dust2_1_png.png',
+  mirage: 'https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/main/images/thumbs/de_mirage_1_png.png',
+  inferno: 'https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/main/images/thumbs/de_inferno_1_png.png',
+  nuke: 'https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/main/images/thumbs/de_nuke_1_png.png',
+  ancient: 'https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/main/images/thumbs/de_ancient_1_png.png',
+  anubis: 'https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/main/images/thumbs/de_anubis_1_png.png',
+}
+
+function mapCardStyle(mapId: string): CSSProperties {
+  const thumbnail = MAP_THUMBNAILS[mapId]
+  return thumbnail ? { '--map-bg': `url("${thumbnail}")` } as CSSProperties : {}
 }
 
 function Topbar({ steam }: { steam: SteamAuthState }) {
@@ -490,8 +504,10 @@ function JoinRoom({
     <main className="app-shell centered-shell">
       <Topbar steam={steam} />
       <form className="panel join-panel" onSubmit={join}>
-        <button type="button" className="text-button back-button" onClick={() => navigate('/')}>← 返回首页</button>
-        <div className="room-code-badge">房间 / {roomCode}</div>
+        <div className="join-panel-topline">
+          <button type="button" className="text-button back-button" onClick={() => navigate('/')}>← 返回首页</button>
+          <div className="room-code-badge">房间 / {roomCode}</div>
+        </div>
         <h1>加入房间</h1>
         {steam.user && <div className="join-profile"><img src={steam.user.avatarUrl} alt="" /><span>{steam.user.steamName}</span><i>已准备</i></div>}
         {steam.user ? (
@@ -884,6 +900,8 @@ function MapVetoBoard({
               <button
                 key={map.id}
                 className={`map-card ${banned ? 'banned' : canBan ? 'selectable' : ''}`}
+                data-map-id={map.id}
+                style={mapCardStyle(map.id)}
                 disabled={banned || !canBan}
                 onClick={() => send({ type: 'ban_map', mapId: map.id })}
               >
