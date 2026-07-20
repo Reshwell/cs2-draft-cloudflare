@@ -286,6 +286,11 @@ function HomePage({ steam }: { steam: SteamAuthState }) {
     <main className="app-shell home-shell">
       <Topbar steam={steam} />
       <div className="page-shell home-content">
+        <section className="hero home-hero">
+          <h1>开始一场CS比赛</h1>
+          <p>创建房间，和朋友分队。</p>
+        </section>
+
         <section className="home-grid">
         <form className="panel action-card create-card" onSubmit={createRoom}>
           <div className="panel-heading">
@@ -297,7 +302,7 @@ function HomePage({ steam }: { steam: SteamAuthState }) {
           <button className="primary-button full-button" disabled={busy || !steam.user} type="submit">
             {busy ? '创建中…' : '创建房间'} <Icon name="arrow" size={16} />
           </button>
-          {!steam.user && <p className="form-note action-note">需要先登录 Steam</p>}
+          {!steam.user && <button className="steam-login-note" onClick={() => steamLogin()} type="button">需要先登录 Steam <Icon name="arrow" size={14} /></button>}
         </form>
 
         <form className="panel action-card join-card" onSubmit={openRoom}>
@@ -318,7 +323,7 @@ function HomePage({ steam }: { steam: SteamAuthState }) {
             />
           </label>
           <button className="secondary-button full-button" disabled={!steam.user} type="submit">加入房间 <Icon name="arrow" size={16} /></button>
-          {!steam.user && <p className="form-note action-note">需要先登录 Steam</p>}
+          {!steam.user && <button className="steam-login-note" onClick={() => steamLogin()} type="button">需要先登录 Steam <Icon name="arrow" size={14} /></button>}
         </form>
         </section>
 
@@ -350,6 +355,36 @@ function HomePage({ steam }: { steam: SteamAuthState }) {
               ))}
             </div>
           )}
+        </section>
+
+        <section className="trust-panel" aria-labelledby="trust-title">
+          <div className="trust-heading">
+            <span className="trust-icon" aria-hidden="true">!</span>
+            <div>
+              <div className="eyebrow">Steam 登录说明</div>
+              <h2 id="trust-title">注意！！！ 这不是一份礼物！！！</h2>
+            </div>
+          </div>
+          <p className="trust-lead">如果页面让你直接填写 Steam 密码、Steam Guard 验证码，或者让你扫一个陌生二维码，请马上关掉。我们不会这样登录。</p>
+          <div className="trust-grid">
+            <div className="trust-item">
+              <strong>我们使用什么</strong>
+              <span>Steam 官方 OpenID 2.0 登录，并由 Steam 官方接口回传身份。</span>
+            </div>
+            <div className="trust-item">
+              <strong>我们获取什么</strong>
+              <span>Steam64 ID、Steam 昵称和头像，用来进入房间、匹配服务器数据和展示玩家。</span>
+            </div>
+            <div className="trust-item">
+              <strong>我们不会获取什么</strong>
+              <span>不会看到 Steam 密码、Steam Guard 验证码、库存、好友列表，也不会拿到 Steam 登录令牌。</span>
+            </div>
+          </div>
+          <div className="trust-checks">
+            <span>认准 <b>steamcommunity.com</b> 登录页</span>
+            <span>本站源码公开</span>
+            <a href="https://github.com/Reshwell/cs2-draft-cloudflare" target="_blank" rel="noreferrer">查看开源代码 <Icon name="arrow" size={14} /></a>
+          </div>
         </section>
         {error && <div className="toast error-toast">{error}</div>}
       </div>
