@@ -270,3 +270,391 @@ input:focus, select:focus { border-color: var(--orange); box-shadow: 0 0 0 3px r
   .match-connect-card .primary-button { justify-content: center; }
   .final-teams-grid { grid-template-columns: 1fr; }
 }
+
+/* Geist light theme
+ * Source: https://vercel.com/design.md
+ * Keep this block last so the visual system is shared by every existing view.
+ */
+:root {
+  font-family: "Geist", "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+  color: #171717;
+  background: #ffffff;
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #fafafa;
+  --surface-3: #f2f2f2;
+  --line: #eaeaea;
+  --line-soft: rgba(0, 0, 0, .08);
+  --muted: #666666;
+  --muted-2: #8f8f8f;
+  --orange: #171717;
+  --orange-light: #006bff;
+  --blue: #006bff;
+  --red: #d9183b;
+  --green: #16803c;
+  --amber: #9a6700;
+}
+
+html, body { background: #ffffff; color: #171717; }
+body { font-size: 14px; line-height: 20px; }
+button, input, select { font-family: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
+
+.app-shell {
+  min-height: 100vh;
+  background: #ffffff;
+}
+.page-shell {
+  width: min(1200px, calc(100% - 48px));
+  padding: 48px 0 64px;
+}
+.topbar {
+  width: min(1200px, calc(100% - 48px));
+  height: 64px;
+  margin: 16px auto 0;
+  padding: 0 16px;
+  gap: 24px;
+  border: 1px solid #eaeaea;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 2px 2px rgba(0, 0, 0, .04);
+}
+.brand-mark {
+  color: #171717;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -.28px;
+}
+.brand-mark > span:last-child span { color: #666666; }
+.brand-mark-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  transform: none;
+  background: #171717;
+  color: #ffffff;
+  font-size: 18px;
+}
+.topnav { gap: 8px; }
+.topnav-item {
+  height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  color: #666666;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.topnav-item:hover, .topnav-item.active {
+  border-bottom-color: transparent;
+  color: #171717;
+  background: #f2f2f2;
+}
+.topnav-item span { color: #006bff; font-size: 12px; }
+.topnav-room { color: #8f8f8f; font-size: 12px; letter-spacing: 0; }
+.topbar-account { margin-left: auto; }
+.steam-account {
+  min-height: 32px;
+  padding: 3px 6px;
+  color: #171717;
+  border-color: #eaeaea;
+  background: #ffffff;
+  border-radius: 9999px;
+}
+.steam-account.compact { font-size: 12px; }
+.steam-account-name { font-weight: 500; }
+.steam-account .text-button { color: #666666; font-size: 12px; }
+.steam-account .text-button:hover, .text-button:hover { color: #006bff; }
+.steam-avatar, .player-avatar { border-radius: 9999px; }
+.steam-avatar { width: 26px; height: 26px; }
+
+.home-content { padding-top: 64px; }
+.hero { max-width: 720px; }
+.home-hero { margin-bottom: 40px; }
+.eyebrow, .card-kicker, .summary-label, .join-kicker {
+  color: #666666;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.hero h1, .room-header h1, .join-panel h1 {
+  margin: 12px 0 16px;
+  color: #171717;
+  font-size: clamp(40px, 6vw, 64px);
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -3.5px;
+}
+.hero p, .room-header p, .join-panel > p {
+  color: #666666;
+  font-size: 16px;
+  line-height: 24px;
+}
+.hero-account { margin-top: 24px; }
+.home-grid { gap: 16px; }
+.panel {
+  border: 1px solid #eaeaea;
+  border-radius: 12px;
+  padding: 24px;
+  background: #ffffff;
+  box-shadow: 0 2px 2px rgba(0, 0, 0, .04);
+}
+.panel-heading { gap: 16px; margin-bottom: 24px; }
+.panel-heading h2, .section-title-row h2, .control-panel h2, .team-heading h2 {
+  margin: 0;
+  color: #171717;
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 600;
+  letter-spacing: -.4px;
+}
+.panel-heading p, .section-title-row p, .team-heading p {
+  margin-top: 4px;
+  color: #666666;
+  font-size: 14px;
+  line-height: 20px;
+}
+.action-card { min-height: 216px; }
+.action-card-mark {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 24px;
+  border-radius: 6px;
+  background: #171717;
+  color: #ffffff;
+  font-size: 20px;
+}
+.join-mark { background: #f2f2f2; color: #171717; border-color: #eaeaea; }
+.action-card-meta { gap: 8px; margin: -4px 0 24px; font-size: 12px; }
+.action-card-meta span {
+  padding: 6px 8px;
+  border: 1px solid #eaeaea;
+  border-radius: 6px;
+  background: #fafafa;
+}
+.active-rooms-panel { margin-top: 16px; }
+.section-title-row { margin-bottom: 16px; }
+.capacity-badge, .pick-counter {
+  padding: 6px 8px;
+  border: 1px solid #eaeaea;
+  border-radius: 9999px;
+  color: #666666;
+  background: #fafafa;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.live-dot { background: #16803c; box-shadow: 0 0 0 3px rgba(22, 128, 60, .12); }
+.active-room-list { gap: 8px; }
+.active-room-card {
+  padding: 14px 16px;
+  border-color: #eaeaea;
+  border-radius: 6px;
+  color: #171717;
+  background: #ffffff;
+  transition: border-color .15s ease, background .15s ease;
+}
+.active-room-card:hover { border-color: #bdbdbd; background: #fafafa; transform: none; }
+.active-room-card strong { font-size: 14px; letter-spacing: .08em; }
+.active-room-card span { color: #666666; font-size: 13px; }
+.active-room-card b { color: #006bff; font-size: 12px; letter-spacing: 0; }
+
+label { gap: 8px; margin: 16px 0; color: #666666; font-size: 12px; font-weight: 500; letter-spacing: 0; }
+input, select {
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid #eaeaea;
+  border-radius: 6px;
+  color: #171717;
+  background: #ffffff;
+  font-size: 14px;
+}
+input:hover, select:hover { border-color: #bdbdbd; }
+input:focus, select:focus {
+  border-color: #006bff;
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #006bff;
+}
+.room-code-input { font-family: "Geist Mono", "SFMono-Regular", Consolas, monospace; font-size: 20px; letter-spacing: .18em; }
+.primary-button, .secondary-button, .danger-button, .steam-login-button {
+  min-height: 40px;
+  gap: 8px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  box-shadow: none;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.primary-button { background: #171717; color: #ffffff; }
+.primary-button:hover:not(:disabled) { background: #333333; filter: none; transform: none; }
+.secondary-button { background: #ffffff; color: #171717; border-color: rgba(0, 0, 0, .16); }
+.secondary-button:hover:not(:disabled) { background: #f2f2f2; border-color: rgba(0, 0, 0, .24); filter: none; transform: none; }
+.danger-button { color: #ffffff; background: #d9183b; border-color: #d9183b; }
+.danger-button:hover:not(:disabled) { background: #b91533; filter: none; transform: none; }
+.steam-login-button { color: #ffffff; background: #171717; border-color: #171717; }
+.steam-login-button:hover:not(:disabled) { background: #333333; filter: none; transform: none; }
+.steam-login-button.compact { min-height: 32px; padding: 0 8px; font-size: 12px; }
+.compact { min-height: 32px; padding: 0 8px; font-size: 12px; }
+.form-note, .hint { color: #666666; font-size: 13px; line-height: 18px; }
+.primary-button:focus-visible, .secondary-button:focus-visible, .danger-button:focus-visible, .steam-login-button:focus-visible, .text-button:focus-visible, .map-card:focus-visible, .pick-player-card:focus-visible, .active-room-card:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #006bff;
+}
+
+.toast {
+  right: 24px;
+  bottom: 24px;
+  padding: 12px 16px;
+  border-radius: 6px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .02), 0 4px 8px -4px rgba(0, 0, 0, .04), 0 16px 24px -8px rgba(0, 0, 0, .06);
+}
+.source-footer { padding: 0 24px 24px; }
+.source-footer a { color: #006bff; font-size: 16px; font-weight: 500; }
+.source-footer a:hover { color: #0059ec; }
+.error-toast, .inline-error { color: #d9183b; background: #fff0f3; border-color: #f4b6c1; }
+.notice-toast { color: #16803c; background: #edf9f0; border-color: #b6e2c2; }
+.inline-error { border-radius: 6px; }
+.spinner { border-color: #eaeaea; border-top-color: #171717; }
+.text-button { color: #666666; }
+.danger-link { color: #d9183b; }
+.room-code-badge { color: #171717; background: #f2f2f2; border-color: #eaeaea; border-radius: 9999px; font-family: "Geist Mono", monospace; }
+.join-profile { margin: 24px 0 16px; padding: 12px; border-color: #eaeaea; border-radius: 6px; background: #fafafa; }
+.join-profile img { border-radius: 9999px; }
+.join-profile i { color: #16803c; }
+.back-button { margin-bottom: 32px; }
+
+.room-shell { padding-top: 40px; }
+.room-header { margin-bottom: 32px; }
+.room-header h1 { font-size: clamp(32px, 5vw, 48px); line-height: 56px; letter-spacing: -2.88px; }
+.header-actions { gap: 8px; }
+.connection-pill { padding: 8px 10px; border-color: #eaeaea; border-radius: 9999px; color: #666666; background: #fafafa; font-size: 12px; }
+.connection-pill.online .status-dot, .presence.online { background: #16803c; box-shadow: 0 0 0 3px rgba(22, 128, 60, .12); }
+.connection-pill.connecting .status-dot { background: #9a6700; }
+.room-summary, .phase-rail {
+  gap: 1px;
+  border-color: #eaeaea;
+  border-radius: 12px;
+  background: #eaeaea;
+}
+.room-summary { margin-bottom: 16px; }
+.room-summary > div, .phase-item { background: #ffffff; }
+.room-summary > div { padding: 16px; }
+.room-summary strong { color: #171717; font-size: 16px; font-family: "Geist Mono", monospace; }
+.room-summary span { color: #666666; font-size: 13px; }
+.room-summary .summary-label { color: #8f8f8f; font-size: 12px; }
+.phase-rail { margin-bottom: 32px; }
+.phase-item { min-height: 48px; padding: 12px 16px; color: #8f8f8f; font-size: 12px; letter-spacing: 0; }
+.phase-item span { color: #8f8f8f; }
+.phase-item.current { color: #171717; background: #f2f2f2; }
+.phase-item.current span, .phase-item.current b { color: #006bff; }
+.phase-item.done span { color: #16803c; }
+
+.waiting-layout { gap: 16px; }
+.control-panel { top: 24px; }
+.players-grid { gap: 8px; }
+.player-card, .empty-player { min-height: 72px; padding: 12px; border-color: #eaeaea; border-radius: 6px; }
+.player-card { background: #ffffff; }
+.player-card:hover { background: #fafafa; }
+.player-card strong, .team-player strong, .pick-player-card strong { font-size: 14px; font-weight: 500; }
+.player-card small, .team-player small, .pick-player-card small { color: #666666; font-size: 12px; }
+.host-transfer-link { color: #006bff; }
+.host-transfer-link:hover { color: #0059ec; }
+.player-flags span, .captain-tag { color: #006bff; background: #f0f7ff; border-radius: 6px; font-size: 12px; }
+.button-stack { gap: 8px; margin-top: 16px; }
+.captain-preview { margin-top: 16px; padding-top: 16px; border-top-color: #eaeaea; }
+.team-letter { border-radius: 6px; }
+.team-letter-a { color: #006bff; background: #f0f7ff; }
+.team-letter-b { color: #d9183b; background: #fff0f3; }
+.turn-banner {
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 16px;
+  border-color: #c9dcff;
+  border-radius: 12px;
+  background: #f0f7ff;
+}
+.turn-banner strong { color: #0059ec; font-size: 14px; }
+.turn-banner span { color: #666666; font-size: 14px; }
+.turn-banner.finished { border-color: #b6e2c2; background: #edf9f0; }
+.turn-banner.finished strong { color: #16803c; }
+.pick-decision-panel { max-width: 640px; margin: 32px auto; }
+.roll-grid { gap: 8px; }
+.roll-card { padding: 24px; border-color: #eaeaea; border-radius: 12px; background: #fafafa; }
+.roll-card span { color: #666666; font-size: 13px; font-weight: 500; }
+.roll-card strong { font-family: "Geist Mono", monospace; font-size: 48px; font-weight: 600; }
+.roll-card.winner { border-color: #8db8ff; background: #f0f7ff; }
+.roll-card.winner span, .roll-card.winner strong { color: #006bff; }
+.draft-grid { gap: 16px; }
+.team-column { padding: 0; border-radius: 12px; background: #ffffff; }
+.team-heading { padding: 16px; border-bottom-color: #eaeaea; }
+.team-heading > span { width: 40px; height: 40px; border-radius: 6px; font-size: 18px; }
+.team-a .team-heading > span { color: #006bff; background: #f0f7ff; }
+.team-b .team-heading > span { color: #d9183b; background: #fff0f3; }
+.team-player { padding: 12px 16px; border-bottom-color: #eaeaea; }
+.player-index { color: #8f8f8f; font-family: "Geist Mono", monospace; font-size: 12px; }
+.available-column { padding: 16px; }
+.available-list { gap: 8px; }
+.pick-player-card {
+  padding: 10px;
+  border-color: #eaeaea;
+  border-radius: 6px;
+  color: #171717;
+  background: #ffffff;
+}
+.pick-player-card.selectable { border-color: #b7d2ff; }
+.pick-player-card.selectable:hover { background: #f0f7ff; border-color: #006bff; transform: none; }
+.pick-player-card b { color: #006bff; font-size: 12px; letter-spacing: 0; }
+.empty-state { color: #666666; font-size: 13px; }
+.draft-footer { gap: 8px; margin-top: 16px; }
+
+.map-veto-panel, .map-result-panel { max-width: 920px; }
+.map-grid { gap: 8px; }
+.map-card {
+  min-height: 112px;
+  padding: 16px;
+  border-color: #eaeaea;
+  border-radius: 12px;
+  color: #171717;
+  background: #fafafa;
+}
+.map-card::after { display: none; }
+.map-card strong { font-size: 16px; font-weight: 600; }
+.map-card span { color: #666666; font-size: 12px; }
+.map-card.selectable { border-color: #b7d2ff; }
+.map-card.selectable:hover { background: #f0f7ff; border-color: #006bff; transform: none; }
+.map-card.banned { opacity: .5; background: #f2f2f2; }
+.map-result-panel { padding: 48px 24px; }
+.result-kicker { color: #666666; font-size: 12px; font-weight: 500; }
+.map-result-name { color: #171717; font-size: clamp(40px, 8vw, 72px); line-height: 1; font-weight: 600; letter-spacing: -4px; }
+.starting-side-result { color: #666666; font-size: 14px; }
+.starting-side-result strong { color: #171717; }
+.side-select-panel { max-width: 620px; margin: 32px auto; padding: 40px 24px; }
+.side-select-caption { margin: 8px 0 24px; color: #666666; }
+.map-ban-summary { gap: 8px; margin-top: 24px; }
+.map-ban-summary span { padding: 6px 8px; color: #666666; background: #fafafa; border-color: #eaeaea; border-radius: 6px; font-size: 12px; }
+.final-teams-grid { gap: 16px; margin-top: 16px; }
+.map-result-panel .final-teams-grid { margin-top: 32px; }
+.map-result-panel .final-teams-grid .team-column { background: #fafafa; }
+.match-connect-card { gap: 16px; margin-top: 32px; padding: 16px; border-color: #eaeaea; border-radius: 12px; background: #fafafa; }
+.match-connect-card span { color: #666666; font-size: 12px; }
+.match-connect-card strong { color: #171717; font-family: "Geist Mono", monospace; font-size: 13px; }
+.closed-panel { margin: 64px auto; }
+
+@media (max-width: 600px) {
+  .topbar { width: calc(100% - 24px); height: 56px; margin-top: 12px; padding: 0 12px; }
+  .topnav { gap: 4px; }
+  .topnav-item { padding: 0 8px; }
+  .page-shell { width: calc(100% - 24px); padding-top: 32px; }
+  .home-content { padding-top: 48px; }
+  .hero h1 { font-size: clamp(40px, 14vw, 56px); letter-spacing: -3px; }
+  .panel { padding: 16px; }
+  .room-header h1 { font-size: 40px; line-height: 48px; letter-spacing: -2.4px; }
+  .map-result-name { letter-spacing: -3px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
