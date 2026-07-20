@@ -111,7 +111,6 @@ const STEAM_LOGIN_STATE_COOKIE = 'cs2_steam_login_state'
 const STEAM_SESSION_MAX_AGE = 7 * 24 * 60 * 60
 const STEAM_LOGIN_STATE_MAX_AGE = 10 * 60
 const RCON_OPERATION_TIMEOUT_MS = 10_000
-const RCON_TEST_PANEL_PATH = '/__ops/rcon-check-7b4e8f12c5a94d6f'
 const RCON_TEST_API_PATH = '/api/__ops/rcon-check-7b4e8f12c5a94d6f'
 
 function json(data: unknown, status = 200): Response {
@@ -699,7 +698,7 @@ export default {
       return json({ ok: true, service: 'cs2-draft-room' })
     }
 
-    if (url.pathname === RCON_TEST_PANEL_PATH && request.method === 'GET') {
+    if (url.pathname === RCON_TEST_API_PATH && request.method === 'GET') {
       return rconTestPanel()
     }
 
